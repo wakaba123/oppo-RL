@@ -43,7 +43,7 @@ from tensorflow.compat.v1.keras.layers import Dense, Input
 from tensorflow.compat.v1.keras.optimizers import Adam, RMSprop
 
 
-def send_socket_data(message, host='127.0.0.1', port=8888):
+def send_socket_data(message, host='192.168.92.218', port=8888):
     try:
         # 创建一个 socket 对象
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -209,7 +209,6 @@ def get_reward(fps, target_fps, big_clock, little_clock,):
     return reward
 
 def process_action(action):
-    # print(action)
     action1, action2 = action % 3 , action // 3
     return [0 , action1, action2, 0]
     
@@ -222,9 +221,9 @@ if __name__=="__main__":
     agent = PPOAgent(6, 9)
 
     cpu_freq_list, gpu_freq_list = tools.get_freq_list('k20p')
-    little_cpu_clock_list = tools.uniformly_select_elements(8, cpu_freq_list[0])
-    big_cpu_clock_list = tools.uniformly_select_elements(8, cpu_freq_list[1])
-    super_big_cpu_clock_list = tools.uniformly_select_elements(6, cpu_freq_list[2])   # 若是没有超大核，则全部为0
+    little_cpu_clock_list = tools.uniformly_select_elements(5, cpu_freq_list[0])
+    big_cpu_clock_list = tools.uniformly_select_elements(5, cpu_freq_list[1])
+    super_big_cpu_clock_list = tools.uniformly_select_elements(5, cpu_freq_list[2])   # 若是没有超大核，则全部为0
 
     state=(0,0,0,0,0,0)
     action=0
@@ -273,6 +272,7 @@ if __name__=="__main__":
             processed_action = process_action(action)
            
             done =1
+            print(f'1,{big_cpu_clock_list[processed_action[1]]},{little_cpu_clock_list[processed_action[2]]}')
             res = send_socket_data(f'1,{big_cpu_clock_list[processed_action[1]]},{little_cpu_clock_list[processed_action[2]]}')
             # closs, aloss = agent.train(state, action, reward, next_state, done)
             aloss=0

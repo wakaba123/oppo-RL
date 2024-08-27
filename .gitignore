@@ -2,3 +2,8 @@
 */save_mode/*
 */__pycache__/*
 *.pyc
+.vscode/*
+native/files/*.csv
+native/obj/*
+
+

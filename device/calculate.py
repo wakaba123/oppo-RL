@@ -1,7 +1,7 @@
 import pandas as pd
 
 # 读取 CSV 文件
-df = pd.read_csv('output.csv')
+df = pd.read_csv('output_gear_1000_real.csv')
 
 # 检查行数是否足够
 if len(df) < 300:

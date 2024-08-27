@@ -138,6 +138,8 @@ def get_view():
 
 view = get_view()
 print('current view is ',view)
+print(view.replace('\\','\\\\'))
+exit(0)
 sf_fps_driver = SurfaceFlingerFPS(view)
 while True:
     fps = float(sf_fps_driver.getFPS())

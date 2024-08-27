@@ -20,9 +20,6 @@ from datetime import datetime
 import sys
 sys.path.append('/home/wakaba/Desktop/zTT/')
 import utils.tools as tools
-import Pixel_3a.PMU.pmu as pmu
-import Pixel_3a.PowerLogger.powerlogger as powerlogger
-from SurfaceFlinger.get_fps import SurfaceFlingerFPS
 import subprocess
 from torchsummary import summary
 import torch
@@ -209,7 +206,6 @@ class DQN:
         self.scaler.update()
 
         return loss
-
 
 def normalization(big_cpu_freq, little_cpu_freq,big_util, little_util, mem, fps):
     big_cpu_freq = int(big_cpu_freq) / int(cpu_freq_list[1][-1])

@@ -1,11 +1,11 @@
 import configparser
 import subprocess
 import re
+import time
 
-check_flag = False
-check_result = []
 
 def execute(cmd):
+    # print(cmd)
     cmds = [ 'su',cmd, 'exit']
     # cmds = [cmd, 'exit']
     obj = subprocess.Popen("adb shell", shell= True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -14,9 +14,6 @@ def execute(cmd):
 
 # check soc architecture
 def check_soc():
-    if check_flag:
-        return check_result
-
     position = '/sys/devices/system/cpu/cpufreq'
     cmd = f'ls {position}'
     result = execute(cmd)
@@ -35,8 +32,18 @@ def set_cpu_freq(freq):
     cpu_type = check_soc()
     policy = cpu_type
     for i in range(len(cpu_type)):
+        execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_max_freq')
+        execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_min_freq')
         execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_min_freq')
         execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_max_freq')
+        print(freq[i], execute(f'cat /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_cur_freq').replace('\n',''))
+        if not (int(freq[i]) == int(execute(f'cat /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_cur_freq').replace('\n','')) or freq[i] == 0):
+            print('here not true')
+            execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_max_freq')
+            execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_min_freq')
+            execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_min_freq')
+            execute(f'echo {freq[i]} > /sys/devices/system/cpu/cpufreq/{policy[i]}/scaling_max_freq')
+
 
 # set cpu frequency by type
 def set_cpu_freq_by_type(type, freq): # 0 means little, 1 means big , 2 means super big
@@ -201,8 +208,23 @@ def get_pid_from_package_name(pacakge_name):
 def get_gpu_util():
     a = execute('cat /sys/class/kgsl/kgsl-3d0/gpu_busy_percentage')
     return a
+
+def recover():
+    set_cpu_governor('schedutil')
+    big_freq_list = [710400,2419200]
+    little_freq_list = [300000,1785600]
+    execute(f'echo {big_freq_list[-1]} > /sys/devices/system/cpu/cpufreq/policy4/scaling_max_freq')
+    execute(f'echo {big_freq_list[0]} > /sys/devices/system/cpu/cpufreq/policy4/scaling_min_freq')
+    execute(f'echo {little_freq_list[-1]} > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq')
+    execute(f'echo {little_freq_list[0]} > /sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq')
+    execute(f'echo 0 > /sys/devices/system/cpu/cpu7/online')
+    subprocess.run('adb forward tcp:8888 tcp:8888', shell=True)
+    execute('stop vendor.thermal-engine')
+
     
 if __name__ == '__main__':
+    recover()
+    exit(0)
     # get_cpu_temp()
     # get_gpu_temp()
     # get_cpu_freq()
@@ -211,8 +233,14 @@ if __name__ == '__main__':
     # get_cpu_times()
     # temp = get_pid_from_package_name('com.bilibili.app.in')
     # print(temp)
+
     # get_cpu_freq()
-    # set_cpu_governor('performance')
-    # set_cpu_freq([1000000, 1000000, 1000000, 1000000])
+    set_cpu_governor('userspace')
+    big_freq_list=[710400,940800,1171200,1401600]
+    little_freq_list=[576000,768000,844800,1036800,1113600,1305600,1632000,1785600]
+    for big_freq in big_freq_list:
+        for little_freq in little_freq_list:
+            set_cpu_freq([little_freq, big_freq, 0])
+            print(get_cpu_freq())
+    # set_cpu_freq([1000000, 1000000, ])
     # set_gpu_governor('performance')
-    pass
