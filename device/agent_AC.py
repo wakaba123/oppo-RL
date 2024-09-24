@@ -43,7 +43,7 @@ from tensorflow.compat.v1.keras.layers import Dense, Input
 from tensorflow.compat.v1.keras.optimizers import Adam, RMSprop
 
 
-def send_socket_data(message, host='127.0.0.1', port=8888):
+def send_socket_data(message, host='192.168.2.108', port=8888):
     try:
         # 创建一个 socket 对象
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -129,9 +129,9 @@ class ACAgent:
         model.compile(loss='mse', optimizer=Adam(learning_rate=self.critic_learning_rate))
         return model
 
-    def get_action(self, state):
+    def get_action(self, state, test=False):
         state = np.array([state])
-        if np.random.rand() <= self.epsilon:
+        if np.random.rand() <= self.epsilon and not test:
             return np.random.choice(self.action_size)
         else:
             action_probs = self.actor.predict(state)[0]
@@ -213,9 +213,22 @@ def normalization(big_cpu_freq, little_cpu_freq,big_util, little_util, mem, fps)
     fps = int(fps) / 60
     return big_cpu_freq, little_cpu_freq, float(big_util), float(little_util),int(mem), fps
 
+
 def get_reward(fps, target_fps, big_clock, little_clock,):
-    reward = (fps - target_fps) * 20 +  ( big_clock + little_clock  ) *  (-100) 
+    reward = -1 * (power_curve_big(big_clock) + power_curve_little(little_clock)) / 200  + max(fps/target_fps, 1)
     return reward
+
+def power_curve_little(x):
+    a = 5.241558774794333e-15
+    b = 2.5017801973228364
+    c = 3.4619889386290694
+    return a * np.power(x, b) + c
+    
+def power_curve_big(x):
+    a = 4.261717048425323e-20
+    b = 3.3944174181971385
+    c = 17.785960069546174
+    return a * np.power(x, b) + c
 
 def process_action(action):
     # print(action)
@@ -237,13 +250,19 @@ if __name__=="__main__":
     state=(0,0,0,0,0,0)
     action=0
     loss = 0
-    experiment_time=1000
-    target_fps=25
+    experiment_time=200
+    target_fps=60
     reward = 0
     closs,aloss=0,0
+    test = True
+    # test = False
+    load = True 
+    # load = False
 
     f = open("output.csv", "w")
     f.write(f'episode,big_cpu_freq,little_cpu_freq,big_util,little_util,ipc,cache_miss,fps,action,aloss,closs,reward\n')
+    if load:
+        agent.load_models()
 
     t=1
     try:
@@ -260,20 +279,19 @@ if __name__=="__main__":
             cache_miss = temp[7]
             print(temp)
 
-            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util},{little_util},{ipc},{cache_miss},{fps},{action},{aloss},{closs},{reward}\n')
-            f.flush() 
-            # print('[{}] state:{} action:{} fps:{}'.format(t, state,action,fps))
-            # print(losses)
 
-            big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
+            normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
 
             # 解析数据
             # next_state=(underlying_data[0], underlying_data[1], underlying_data[2], underlying_data[3], underlying_data[4] ,fps)
-            next_state = (big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
+            next_state = (normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps)
             
             # reward 
-            reward = get_reward(fps, target_fps,big_cpu_freq, little_cpu_freq)
+            reward = get_reward(int(fps), int(target_fps),int(big_cpu_freq), int(little_cpu_freq))
             # print(state, action, next_state, reward)
+
+            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util},{little_util},{ipc},{cache_miss},{fps},{action},{aloss},{closs},{reward}\n')
+            f.flush() 
 
             # 获得action
             action = agent.get_action(state)
@@ -282,7 +300,8 @@ if __name__=="__main__":
            
             done =1
             res = send_socket_data(f'1,{big_cpu_clock_list[processed_action[1]]},{little_cpu_clock_list[processed_action[2]]}')
-            closs, aloss = agent.train(state, action, reward, next_state, done)
+            if not test:
+                closs, aloss = agent.train(state, action, reward, next_state, done)
             aloss=0
             if(int(res) == -1):
                 print('freq set error')
@@ -303,4 +322,6 @@ if __name__=="__main__":
 
     finally:
         f.close()
+    if not test:
+        agent.save_models()
  

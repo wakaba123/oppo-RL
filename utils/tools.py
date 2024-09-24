@@ -224,7 +224,6 @@ def recover():
     
 if __name__ == '__main__':
     recover()
-    exit(0)
     # get_cpu_temp()
     # get_gpu_temp()
     # get_cpu_freq()
@@ -236,11 +235,15 @@ if __name__ == '__main__':
 
     # get_cpu_freq()
     set_cpu_governor('userspace')
-    big_freq_list=[710400,940800,1171200,1401600]
-    little_freq_list=[576000,768000,844800,1036800,1113600,1305600,1632000,1785600]
-    for big_freq in big_freq_list:
-        for little_freq in little_freq_list:
-            set_cpu_freq([little_freq, big_freq, 0])
-            print(get_cpu_freq())
-    # set_cpu_freq([1000000, 1000000, ])
+    # set_cpu_governor('performance')
+    # big_freq_list=[710400,940800,1171200,1401600]
+    # little_freq_list=[576000,768000,844800,1036800,1113600,1305600,1632000,1785600]
+    # for big_freq in big_freq_list:
+    #     for little_freq in little_freq_list:
+    #         set_cpu_freq([little_freq, big_freq, 0])
+    #         print(get_cpu_freq())
+    #         time.sleep(2)
+    # set_cpu_freq([576000, 710400,0 ])
+    # print(get_cpu_freq())
+    #         time.sleep(2)
     # set_gpu_governor('performance')

@@ -29,6 +29,7 @@ from collections import deque
 from torch.cuda.amp import GradScaler, autocast
 import socket
 import pickle
+import argparse
 
 def execute(cmd):
     # print(cmd)
@@ -147,11 +148,11 @@ class DQN:
         self.scaler = GradScaler()
 
     @torch.no_grad()
-    def choose_action(self, state):
+    def choose_action(self, state, test=False):
         self.sample_count += 1
         self.epsilon = self.cfg.epsilon_end + (self.cfg.epsilon_start - self.cfg.epsilon_end) * \
                        np.exp(-1. * self.sample_count / self.cfg.epsilon_decay)
-        if random.uniform(0, 1) > self.epsilon:
+        if random.uniform(0, 1) > self.epsilon or test:
             state = torch.tensor(np.array(state), device=self.cfg.device, dtype=torch.float32).unsqueeze(0)
             q_value = self.policy_net(state)
             action = q_value.argmax(dim=1).item()
@@ -215,8 +216,20 @@ def normalization(big_cpu_freq, little_cpu_freq,big_util, little_util, mem, fps)
     return big_cpu_freq, little_cpu_freq, float(big_util), float(little_util),int(mem), fps
 
 def get_reward(fps, target_fps, big_clock, little_clock,):
-    reward = (fps - target_fps) * 20 +  ( big_clock + little_clock  ) *  (-100) 
+    reward = -1 * (power_curve_big(big_clock) + power_curve_little(little_clock)) / 200  + min(fps/target_fps, 1)
     return reward
+
+def power_curve_little(x):
+    a = 5.241558774794333e-15
+    b = 2.5017801973228364
+    c = 3.4619889386290694
+    return a * np.power(x, b) + c
+    
+def power_curve_big(x):
+    a = 4.261717048425323e-20
+    b = 3.3944174181971385
+    c = 17.785960069546174
+    return a * np.power(x, b) + c
 
 def process_action(action):
     # print(action)
@@ -224,34 +237,63 @@ def process_action(action):
     return [0 , action1, action2, 0]
     
 if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--name', type=str, required=True, help='输入输出文件的名称')
+    parser.add_argument('-l', '--load_model', type=str, required=False, help='输入要导入的模型的名称')
+    parser.add_argument('-s', '--saved_model', type=str, required=False, help='输入要存储的模型的名称')
+    args = parser.parse_args()
+
+    output_dir = args.name
+
+    # 判断文件夹是否存在
+    if not os.path.exists(output_dir):
+        # 如果文件夹不存在，则创建它
+        os.makedirs(output_dir)
+        print(f"文件夹 '{output_dir}' 已创建。")
+    else:
+        print(f"文件夹 '{output_dir}' 已存在。")
 
     # s_dim: 状态维度，即输入的状态向量的维度。
     # h_dim: 隐藏层的维度，即神经网络中间层的神经元数量。
     # branches : 每个分支的action的数量
     cfg = Config()
     n_states = 6
-    n_actions = 64
+    n_actions = 256
     cfg.n_actions = n_actions
     cfg.n_states = n_states
-    
-    policy_net = torch.jit.script(MLP(n_states, n_actions, cfg.hidden_dim).to(cfg.device)) 
-    target_net = torch.jit.script(MLP(n_states, n_actions, cfg.hidden_dim).to(cfg.device)) 
+    load_model = False
+    # load_model = True
+    test = False
+    # test = True
+    load_model_mark = args.load_model
+    saved_model_mark = args.saved_model
+    output_file = args.name
+
+    if load_model:
+        policy_net= torch.jit.load(f'models/policy_net_{load_model_mark}.pt', map_location=cfg.device)
+        policy_net.to(cfg.device)
+        target_net= torch.jit.load(f'models/target_net_{load_model_mark}.pt', map_location=cfg.device)
+        target_net.to(cfg.device)
+    else:
+        policy_net = torch.jit.script(MLP(n_states, n_actions, cfg.hidden_dim).to(cfg.device)) 
+        target_net = torch.jit.script(MLP(n_states, n_actions, cfg.hidden_dim).to(cfg.device)) 
+
     memory = ReplayBuffer(cfg.memory_capacity)
     agent = DQN(policy_net, target_net, memory, cfg)
 
     cpu_freq_list, gpu_freq_list = tools.get_freq_list('k20p')
-    little_cpu_clock_list = tools.uniformly_select_elements(8, cpu_freq_list[0])
-    big_cpu_clock_list = tools.uniformly_select_elements(8, cpu_freq_list[1])
+    little_cpu_clock_list = tools.uniformly_select_elements(16, cpu_freq_list[0])
+    big_cpu_clock_list = tools.uniformly_select_elements(16, cpu_freq_list[1])
     super_big_cpu_clock_list = tools.uniformly_select_elements(6, cpu_freq_list[2])   # 若是没有超大核，则全部为0
 
     state=(0,0,0,0,0,0)
     action=0
     loss = 0
-    experiment_time=10000
-    target_fps=25
+    experiment_time=5300
+    target_fps=30
     reward = 0
 
-    f = open("output.csv", "w")
+    f = open(f"{output_dir}/{output_file}.csv", "w")
     f.write(f'episode,big_cpu_freq,little_cpu_freq,big_util,little_util,ipc,cache_miss,fps,action,loss,reward\n')
 
     t=1
@@ -268,28 +310,28 @@ if __name__=="__main__":
             ipc = temp[6]
             cache_miss = temp[7]
             print(temp)
-
-            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util}, {little_util}, {ipc}, {cache_miss}, {fps},{action}, {loss},{reward}\n')
-            f.flush() 
             # print('[{}] state:{} action:{} fps:{}'.format(t, state,action,fps))
             # print(losses)
 
-            big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
+            normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
 
             # 解析数据
             # next_state=(underlying_data[0], underlying_data[1], underlying_data[2], underlying_data[3], underlying_data[4] ,fps)
-            next_state = (big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
+            next_state = (normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps)
             
             # reward 
-            reward = get_reward(fps, target_fps,big_cpu_freq, little_cpu_freq)
+            reward = get_reward(int(fps), int(target_fps),int(big_cpu_freq), int(little_cpu_freq))
             # print(state, action, next_state, reward)
+
+            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util}, {little_util}, {ipc}, {cache_miss}, {fps},{action}, {loss},{reward}\n')
+            f.flush() 
 
             # replay memory
             if t != 1:
                 agent.memory.push((np.array(state), action, reward, np.array(next_state)))
 
             # 获得action
-            action = agent.choose_action(state)
+            action = agent.choose_action(state, test)
             print(action)
             
             processed_action = process_action(action)
@@ -304,7 +346,7 @@ if __name__=="__main__":
                 print('freq set error')
                 break
 
-            if (t > 5):
+            if (t > 5 and t <= experiment_time - 300):
                 loss = agent.update()
                 print('here loss is ', loss)
             
@@ -315,11 +357,12 @@ if __name__=="__main__":
             if t % 100 == 0:
                 agent.memory.dump('replay_buffer.pkl')
 
-            time.sleep(0.01)
-             # 下面这段是记录进文件，供绘图使用的 
-            # f.write(f'episode,big_cpu_freq,little_cpu_freq,gpu_freq,cpu_temp,fps\n')
+            time.sleep(0.04)
 
 
     finally:
+        if not test:
+            torch.jit.save(agent.policy_net, f'models/policy_net_{saved_model_mark}.pt')
+            torch.jit.save(agent.target_net, f'models/target_net_{saved_model_mark}.pt')
         f.close()
  

@@ -62,7 +62,7 @@ def send_socket_data(message, host='192.168.2.108', port=8888):
         client_socket.close()
 
 
-experiment_time = 10000
+experiment_time = 2000
 clock_change_time = 30
 cpu_power_limit = 1000
 gpu_power_limit = 1600
@@ -122,9 +122,9 @@ class A2CAgent:
         model.compile(loss='mse', optimizer=Adam(lr=self.critic_learning_rate))
         return model
 
-    def get_action(self, state):
+    def get_action(self, state, test):
         state = np.array([state])
-        if np.random.rand() <= self.epsilon:
+        if np.random.rand() <= self.epsilon and not test:
             return np.random.choice(self.action_size)
         else:
             action_probs = self.actor.predict(state)[0]
@@ -187,9 +187,21 @@ def normalization(big_cpu_freq, little_cpu_freq,big_util, little_util, mem, fps)
     fps = int(fps) / 60
     return big_cpu_freq, little_cpu_freq, float(big_util), float(little_util),int(mem), fps
 
-def get_reward(fps, target_fps, big_clock, little_clock):
-    reward = (fps - target_fps) * 20 +  ( big_clock + little_clock  ) *  (-100) 
+def get_reward(fps, target_fps, big_clock, little_clock,):
+    reward = -1 * (power_curve_big(big_clock) + power_curve_little(little_clock)) / 200  + max(fps/target_fps, 1)
     return reward
+
+def power_curve_little(x):
+    a = 5.241558774794333e-15
+    b = 2.5017801973228364
+    c = 3.4619889386290694
+    return a * np.power(x, b) + c
+    
+def power_curve_big(x):
+    a = 4.261717048425323e-20
+    b = 3.3944174181971385
+    c = 17.785960069546174
+    return a * np.power(x, b) + c
 
 def process_action(action):
     # print(action)
@@ -213,13 +225,20 @@ if __name__=="__main__":
     state=(0,0,0,0,0,0)
     action=0
     loss = 0
-    experiment_time=1000
-    target_fps=25
+    experiment_time=200
+    target_fps=60
     reward = 0
     closs,aloss=0,0
+    test = True
+    # test = False
+    load = True 
+    # load = False
 
     f = open("output.csv", "w")
     f.write(f'episode,big_cpu_freq,little_cpu_freq,big_util,little_util,ipc,cache_miss,fps,action,aloss,closs,reward\n')
+
+    if load:
+        agent.load_models()
 
     t=1
     try:
@@ -241,27 +260,22 @@ if __name__=="__main__":
             end_t1 = datetime.now()
             print(f"[Time] Socket data processing took: {end_t1 - t1}")
 
-            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util},{little_util},{ipc},{cache_miss},{fps},{action},{aloss},{closs},{reward}\n')
-            f.flush() 
-            
-            # 打点2：开始数据归一化
-            t2 = datetime.now()
-            big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
-            end_t2 = datetime.now()
-            print(f"[Time] Normalization took: {end_t2 - t2}")
+      
+            normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
 
             # 解析数据
-            next_state = (big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
+            # next_state=(underlying_data[0], underlying_data[1], underlying_data[2], underlying_data[3], underlying_data[4] ,fps)
+            next_state = (normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps)
             
-            # 打点3：开始计算reward
-            t3 = datetime.now()
-            reward = get_reward(fps, target_fps, big_cpu_freq, little_cpu_freq)
-            end_t3 = datetime.now()
-            print(f"[Time] Reward calculation took: {end_t3 - t3}")
+            # reward 
+            reward = get_reward(int(fps), int(target_fps),int(big_cpu_freq), int(little_cpu_freq))
+            # print(state, action, next_state, reward)
 
+            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util},{little_util},{ipc},{cache_miss},{fps},{action},{aloss},{closs},{reward}\n')
+            f.flush() 
             # 获得action
             t4 = datetime.now()
-            action = agent.get_action(state)
+            action = agent.get_action(state, test)
             processed_action = process_action(action)
             end_t4 = datetime.now()
             print(f"[Time] Action selection took: {end_t4 - t4}")
@@ -276,7 +290,8 @@ if __name__=="__main__":
 
             # 打点5：开始训练模型
             t6 = datetime.now()
-            closs, aloss = agent.train(state, action, reward, next_state, done)
+            if not test:
+                closs, aloss = agent.train(state, action, reward, next_state, done)
             end_t6 = datetime.now()
             print(f"[Time] Model training took: {end_t6 - t6}")
 
@@ -301,3 +316,5 @@ if __name__=="__main__":
 
     finally:
         f.close()
+    if not test:
+        agent.save_models()

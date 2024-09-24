@@ -114,7 +114,7 @@ def execute(cmd):
 def get_view():
     focus_index = [3,6]
     # focus_index= [4,8]
-    out = execute('dumpsys SurfaceFlinger | grep -i focus -A 10')
+    out = execute('dumpsys SurfaceFlinger | grep -i focus -A 51')
     a = out.split('\n')
     view = ""
     for index in focus_index:
@@ -137,7 +137,8 @@ def get_view():
     return re.escape(result[0])
 
 view = get_view()
-print('current view is ',view)
+view = 'SurfaceView[com.tencent.letsgo/com.epicgames.ue4.GameActivityExt](BLAST)#875'
+print('current view is ',re.escape(view))
 print(view.replace('\\','\\\\'))
 exit(0)
 sf_fps_driver = SurfaceFlingerFPS(view)

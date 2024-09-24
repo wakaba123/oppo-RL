@@ -1,6 +1,7 @@
 import socket
+import time
 
-def send_socket_data(message, host='127.0.0.1', port=8888):
+def send_socket_data(message, host='192.168.2.108', port=8888):
     try:
         # 创建一个 socket 对象
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -21,5 +22,11 @@ def send_socket_data(message, host='127.0.0.1', port=8888):
         # 关闭连接
         client_socket.close()
 
-print(send_socket_data('1,825600,672000'))
-print(send_socket_data('0'))
+# print(send_socket_data('1,825600,672000'))
+t = 0
+print('big_cpu_freq,little_cpu_freq,fps,mem,little_util,big_util,ipc,cache_miss')
+while t < 200:
+    print(send_socket_data('0'))
+    t+=1
+    time.sleep(0.1)
+    
