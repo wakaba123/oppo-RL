@@ -5,5 +5,13 @@
 .vscode/*
 native/files/*.csv
 native/obj/*
+*/models/*
+kd_tree/*
+power/*.txt
+temp_file/*
+output.csv
+temp.py
+temp.txt
+dqn_model_episode_*
 
 

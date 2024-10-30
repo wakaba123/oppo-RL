@@ -18,7 +18,7 @@ import train_utils as train_utils
 import matplotlib.pyplot as plt
 from datetime import datetime
 import sys
-sys.path.append('/home/wakaba/Desktop/zTT/')
+sys.path.append('/home/wakaba/Desktop/branch-rl-dvfs')
 import utils.tools as tools
 import subprocess
 from torchsummary import summary
@@ -205,33 +205,43 @@ class DQN:
 
         return loss
 
-def normalization(big_cpu_freq, little_cpu_freq,big_util, little_util, mem, fps):
-    big_cpu_freq = int(big_cpu_freq) / int(cpu_freq_list[1][-1])
-    little_cpu_freq = int(little_cpu_freq) / int(cpu_freq_list[0][-1])
-    mem = int(mem) / 1e6
-    fps = int(fps) / 60
-    return big_cpu_freq, little_cpu_freq, float(big_util), float(little_util),int(mem), fps
-
-def get_reward(fps, target_fps, big_clock, little_clock,):
+def get_reward(fps, target_fps, sbig_freq, big_freq, middle_freq, little_freq,):
     reward = -1 * (power_curve_big(big_clock) + power_curve_little(little_clock)) / 200  + min(fps/target_fps, 1)
     return reward
-
-def power_curve_little(x):
-    a = 5.241558774794333e-15
-    b = 2.5017801973228364
-    c = 3.4619889386290694
-    return a * np.power(x, b) + c
-    
-def power_curve_big(x):
-    a = 4.261717048425323e-20
-    b = 3.3944174181971385
-    c = 17.785960069546174
-    return a * np.power(x, b) + c
 
 def process_action(action):
     # print(action)
     action1, action2 = action % 8 , action // 8
     return [0 , action1, action2, 0]
+
+def normalize_mem(mem):
+    return mem  /  1e5
+
+def normalize_freq(sbig_freq, big_freq, middle_freq, little_freq):
+    return sbig_freq / freq_policy7[-1], big_freq / freq_policy5[-1], middle_freq / freq_policy2[-1], little_freq / freq_policy0[-1]
+
+def normalize_util(sbig_util, big_util, middle_util, little_util):
+    return sbig_util / 100, big_util / 100, middle_util / 100, little_util / 100
+
+def normalize_fps(fps):
+    return fps / target_fps
+
+
+freq_policy0 = np.array([364800, 460800, 556800, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1344000, 1459200, 1574400, 1689600, 1804800, 1920000, 2035200, 2150400, 2265600])
+power_policy0 = np.array([4, 5.184, 6.841, 8.683, 10.848, 12.838, 14.705, 17.13, 19.879, 21.997, 25.268, 28.916, 34.757, 40.834, 46.752, 50.616, 56.72, 63.552])
+
+# Data for policy2
+freq_policy2 = np.array([499200, 614400, 729600, 844800, 960000, 1075200, 1190400, 1286400, 1401600, 1497600, 1612800, 1708800, 1824000, 1920000, 2035200, 2131200, 2188800, 2246400, 2323200, 2380800, 2438400, 2515200, 2572800, 2630400, 2707200, 2764800, 2841600, 2899200, 2956800, 3014400, 3072000, 3148800])
+power_policy2 = np.array([15.386, 19.438, 24.217, 28.646, 34.136, 41.231, 47.841, 54.705, 58.924, 68.706, 77.116, 86.37, 90.85, 107.786, 121.319, 134.071, 154.156, 158.732, 161.35, 170.445, 183.755, 195.154, 206.691, 217.975, 235.895, 245.118, 258.857, 268.685, 289.715, 311.594, 336.845, 363.661])
+
+# Data for policy5
+freq_policy5 = np.array([499200, 614400, 729600, 844800, 960000, 1075200, 1190400, 1286400, 1401600, 1497600, 1612800, 1708800, 1824000, 1920000, 2035200, 2131200, 2188800, 2246400, 2323200, 2380800, 2438400, 2515200, 2572800, 2630400, 2707200, 2764800, 2841600, 2899200, 2956800])
+power_policy5 = np.array([15.53, 20.011, 24.855, 30.096, 35.859, 43.727, 51.055, 54.91, 64.75, 72.486, 80.577, 88.503, 99.951, 109.706, 114.645, 134.716, 154.972, 160.212, 164.4, 167.938, 178.369, 187.387, 198.433, 209.545, 226.371, 237.658, 261.999, 275.571, 296.108])
+
+# Data for policy7
+freq_policy7 = np.array([480000, 576000, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1363200, 1478400, 1593600, 1708800, 1824000, 1939200, 2035200, 2112000, 2169600, 2246400, 2304000, 2380800, 2438400, 2496000, 2553600, 2630400, 2688000, 2745600, 2803200, 2880000, 2937600, 2995200, 3052800])
+power_policy7 = np.array([31.094, 39.464, 47.237, 59.888, 70.273, 84.301, 97.431, 114.131, 126.161, 142.978, 160.705, 181.76, 201.626, 223.487, 240.979, 253.072, 279.625, 297.204, 343.298, 356.07, 369.488, 393.457, 408.885, 425.683, 456.57, 481.387, 511.25, 553.637, 592.179, 605.915, 655.484])
+
     
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
@@ -241,6 +251,10 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     output_dir = args.name
+    load_model = False
+    # load_model = True
+    test = False
+    # test = True
 
     # 判断文件夹是否存在
     if not os.path.exists(output_dir):
@@ -250,6 +264,9 @@ if __name__=="__main__":
     else:
         print(f"文件夹 '{output_dir}' 已存在。")
 
+
+    # -------------------- here after all config -------------------------
+
     # s_dim: 状态维度，即输入的状态向量的维度。
     # h_dim: 隐藏层的维度，即神经网络中间层的神经元数量。
     # branches : 每个分支的action的数量
@@ -258,10 +275,7 @@ if __name__=="__main__":
     n_actions = 256
     cfg.n_actions = n_actions
     cfg.n_states = n_states
-    load_model = False
-    # load_model = True
-    test = False
-    # test = True
+   
     load_model_mark = args.load_model
     saved_model_mark = args.saved_model
     output_file = args.name
@@ -278,11 +292,6 @@ if __name__=="__main__":
     memory = ReplayBuffer(cfg.memory_capacity)
     agent = DQN(policy_net, target_net, memory, cfg)
 
-    cpu_freq_list, gpu_freq_list = tools.get_freq_list('k20p')
-    little_cpu_clock_list = tools.uniformly_select_elements(16, cpu_freq_list[0])
-    big_cpu_clock_list = tools.uniformly_select_elements(16, cpu_freq_list[1])
-    super_big_cpu_clock_list = tools.uniformly_select_elements(6, cpu_freq_list[2])   # 若是没有超大核，则全部为0
-
     state=(0,0,0,0,0,0)
     action=0
     loss = 0
@@ -291,34 +300,41 @@ if __name__=="__main__":
     reward = 0
 
     f = open(f"{output_dir}/{output_file}.csv", "w")
-    f.write(f'episode,big_cpu_freq,little_cpu_freq,big_util,little_util,ipc,cache_miss,fps,action,loss,reward\n')
+    f.write(f'episode,sbig_cpu_freq,big_cpu_freq,middle_cpu_freq,little_cpu_freq,sbig_util,big_util,middle_util,little_util,ipc,cache_miss,fps,action,loss,reward\n')
 
     t=1
     try:
         while t < experiment_time:
             t1 = datetime.now()
             temp = send_socket_data('0').split(',')
-            big_cpu_freq = temp[0]
-            little_cpu_freq =temp[1]
-            fps = temp[2]
-            mem = temp[3]
-            little_util = temp[4]
-            big_util = temp[5]
-            ipc = temp[6]
-            cache_miss = temp[7]
+            sbig_cpu_freq = temp[0]
+            big_cpu_freq = temp[1]
+            middle_cpu_freq =temp[2]
+            little_cpu_freq =temp[3]
+            fps = temp[4]
+            mem = temp[5]
+            sbig_util = temp[6]
+            big_util = temp[7]
+            middle_util = temp[8]
+            little_util = temp[9]
+            ipc = temp[10]
+            cache_miss = temp[11]
             print(temp)
 
-            normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps = normalization(big_cpu_freq, little_cpu_freq, big_util, little_util, mem, fps)
+            normal_sbig_cpu_freq, normal_big_cpu_freq, normal_middle_cpu_freq, normal_little_cpu_freq  = normalize_freq(sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq)
+            normal_sbig_util, normal_big_util, normal_middle_util, normal_little_util  = normalize_util(sbig_util, big_util, middle_util, little_util)
+            normal_mem = normalize_mem(mem)
+            normal_fps = normalize_fps(fps)
 
             # 解析数据
             # next_state=(underlying_data[0], underlying_data[1], underlying_data[2], underlying_data[3], underlying_data[4] ,fps)
             next_state = (normal_big_cpu_freq, normal_little_cpu_freq, normal_big_util, normal_little_util, normal_mem, normal_fps)
             
             # reward 
-            reward = get_reward(int(fps), int(target_fps),int(big_cpu_freq), int(little_cpu_freq))
+            reward = get_reward(fps, target_fps, sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq)
             # print(state, action, next_state, reward)
 
-            f.write(f'{t},{big_cpu_freq},{little_cpu_freq},{big_util}, {little_util}, {ipc}, {cache_miss}, {fps},{action}, {loss},{reward}\n')
+            f.write(f'{t},{sbig_cpu_freq},{big_cpu_freq},{middle_cpu_freq},{little_cpu_freq},{sbig_util},{big_util},{middle_util},{little_util},{ipc},{cache_miss},{fps},{action},{loss},{reward}\n')
             f.flush() 
 
             # replay memory
@@ -329,7 +345,7 @@ if __name__=="__main__":
             action = agent.choose_action(state, test)
             print(action)
             
-            processed_action = process_action(action)
+            target_sbig_freq, target_big_freq, target_middle_freq, target_little_freq = process_action(action)
 
             tools.set_cpu_freq([little_cpu_clock_list[processed_action[1]], big_cpu_clock_list[processed_action[2]], super_big_cpu_clock_list[processed_action[3]]]) # 若没有超大核，实际超大核不会设置
             res = send_socket_data(f'1,{big_cpu_clock_list[processed_action[1]]},{little_cpu_clock_list[processed_action[2]]}')

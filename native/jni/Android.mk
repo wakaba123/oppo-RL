@@ -10,8 +10,8 @@ include $(BUILD_EXECUTABLE)
 
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := pmu_test 
-LOCAL_SRC_FILES := pmu_test.cpp
+LOCAL_MODULE := power 
+LOCAL_SRC_FILES := power.cpp
 APP_STL := c++_static
 APP_ABI := arm64-v8a
 include $(BUILD_EXECUTABLE)

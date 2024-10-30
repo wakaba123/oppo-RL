@@ -1,7 +1,7 @@
 import socket
 import time
 
-def send_socket_data(message, host='192.168.2.108', port=8888):
+def send_socket_data(message, host='192.168.2.103', port=8888):
     try:
         # 创建一个 socket 对象
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -25,6 +25,8 @@ def send_socket_data(message, host='192.168.2.108', port=8888):
 # print(send_socket_data('1,825600,672000'))
 t = 0
 print('big_cpu_freq,little_cpu_freq,fps,mem,little_util,big_util,ipc,cache_miss')
+wangzhe = 'SurfaceView[com.tencent.tmgp.sgame/com.tencent.tmgp.sgame.SGameActivity]\(BLAST\)#6327'
+douyin = 'SurfaceView[com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity]\(BLAST\)#6485'
 while t < 200:
     print(send_socket_data('0'))
     t+=1

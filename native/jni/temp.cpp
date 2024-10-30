@@ -132,28 +132,48 @@ float get_gpu_util() {
     return (float)a / b;
 }
 
-// int get_sbig_cpu_freq() {
-//     const char* filename = "/sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq";
-//     FILE* file = fopen(filename, "r");
-//     if (file == NULL) {
-//         printf("Failed to open file: %s\n", filename);
-//         return -1;
-//     }
+int get_sbig_cpu_freq() {
+    const char* filename = "/sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq";
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("Failed to open file: %s\n", filename);
+        return -1;
+    }
 
-//     int freq;
-//     if (fscanf(file, "%d", &freq) != 1) {
-//         printf("Failed to read frequency from file: %s\n", filename);
-//         fclose(file);
-//         return -1;
-//     }
+    int freq;
+    if (fscanf(file, "%d", &freq) != 1) {
+        printf("Failed to read frequency from file: %s\n", filename);
+        fclose(file);
+        return -1;
+    }
 
-//     fclose(file);
-//     return freq;
-// }
+    fclose(file);
+    return freq;
+}
 
 int get_big_cpu_freq() {
-    const char* filename = "/sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq";
-    printf("%s\n", filename);
+    const char* filename = "/sys/devices/system/cpu/cpufreq/policy5/scaling_cur_freq";
+    // printf("%s\n", filename);
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("Failed to open file: %s\n", filename);
+        return -1;
+    }
+
+    int freq;
+    if (fscanf(file, "%d", &freq) != 1) {
+        printf("Failed to read frequency from file: %s\n", filename);
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+    return freq;
+}
+
+int get_middle_cpu_freq() {
+    const char* filename = "/sys/devices/system/cpu/cpufreq/policy2/scaling_cur_freq";
+    // printf("%s\n", filename);
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
         printf("Failed to open file: %s\n", filename);
@@ -219,46 +239,113 @@ int get_swap() {
 }
 
 int set_governor(std::string target_governor) {
-    const char* big_cpu = "/sys/devices/system/cpu/cpufreq/policy4/scaling_governor";
+    const char* sbig_cpu = "/sys/devices/system/cpu/cpufreq/policy7/scaling_governor";
+    const char* big_cpu = "/sys/devices/system/cpu/cpufreq/policy5/scaling_governor";
+    const char* middle_cpu = "/sys/devices/system/cpu/cpufreq/policy2/scaling_governor";
     const char* little_cpu = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
 
+    FILE* file_sbig = fopen(sbig_cpu, "w");
     FILE* file_big = fopen(big_cpu, "w");
+    FILE* file_middle = fopen(middle_cpu, "w");
     FILE* file_little = fopen(little_cpu, "w");
-    if (file_big == NULL || file_little == NULL) {
+
+    if (file_big == NULL || file_little == NULL || file_middle == NULL || file_sbig == NULL) {
         printf("Failed to open file: %s or %s \n", big_cpu, little_cpu);
         return -1;
     }
-
+    fprintf(file_sbig, "%s", target_governor.c_str());
     fprintf(file_big, "%s", target_governor.c_str());
+    fprintf(file_middle, "%s", target_governor.c_str());
     fprintf(file_little, "%s", target_governor.c_str());
 
+    fclose(file_sbig);
     fclose(file_big);
+    fclose(file_middle);
     fclose(file_little);
 
     return 0;
 }
 
-int set_freq(int big_freq, int little_freq) {
-    const char* little_cpu = "/sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed";
-    const char* big_cpu = "/sys/devices/system/cpu/cpufreq/policy4/scaling_setspeed";
+int set_freq(int sbig_freq, int big_freq, int middle_freq, int little_freq) {
+    const char* little_cpu_max = "/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
+    const char* little_cpu_min = "/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq";
+    const char* middle_cpu_max = "/sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
+    const char* middle_cpu_min = "/sys/devices/system/cpu/cpufreq/policy2/scaling_min_freq";
+    const char* big_cpu_max = "/sys/devices/system/cpu/cpufreq/policy5/scaling_max_freq";
+    const char* big_cpu_min = "/sys/devices/system/cpu/cpufreq/policy5/scaling_min_freq";
+    const char* sbig_cpu_max = "/sys/devices/system/cpu/cpufreq/policy7/scaling_max_freq";
+    const char* sbig_cpu_min = "/sys/devices/system/cpu/cpufreq/policy7/scaling_min_freq";
 
-    FILE* file_big = fopen(big_cpu, "w");
-    FILE* file_little = fopen(little_cpu, "w");
+    // 打开文件以设置 max 和 min 频率
+    FILE* file_sbig_max = fopen(sbig_cpu_max, "w");
+    FILE* file_sbig_min = fopen(sbig_cpu_min, "w");
+    FILE* file_big_max = fopen(big_cpu_max, "w");
+    FILE* file_big_min = fopen(big_cpu_min, "w");
+    FILE* file_middle_max = fopen(middle_cpu_max, "w");
+    FILE* file_middle_min = fopen(middle_cpu_min, "w");
+    FILE* file_little_max = fopen(little_cpu_max, "w");
+    FILE* file_little_min = fopen(little_cpu_min, "w");
 
-    if (file_big == NULL || file_little == NULL) {
-        printf("Failed to open file: %s or %s \n", big_cpu, little_cpu);
+    // 检查文件打开是否成功
+    if (file_sbig_max == NULL || file_sbig_min == NULL ||
+        file_big_max == NULL || file_big_min == NULL ||
+        file_middle_max == NULL || file_middle_min == NULL ||
+        file_little_max == NULL || file_little_min == NULL) {
+        printf("Failed to open one or more files.\n");
         return -1;
     }
 
-    fprintf(file_big, "%d", big_freq);
-    fprintf(file_little, "%d", little_freq);
+    // 写入最大和最小频率
+    fprintf(file_sbig_max, "%d", sbig_freq);
+    fprintf(file_sbig_min, "%d", sbig_freq);
+    fprintf(file_big_max, "%d", big_freq);
+    fprintf(file_big_min, "%d", big_freq);
+    fprintf(file_middle_max, "%d", middle_freq);
+    fprintf(file_middle_min, "%d", middle_freq);
+    fprintf(file_little_max, "%d", little_freq);
+    fprintf(file_little_min, "%d", little_freq);
 
-    fclose(file_big);
-    fclose(file_little);
+    // 关闭所有打开的文件
+    fclose(file_sbig_max);
+    fclose(file_sbig_min);
+    fclose(file_big_max);
+    fclose(file_big_min);
+    fclose(file_middle_max);
+    fclose(file_middle_min);
+    fclose(file_little_max);
+    fclose(file_little_min);
 
-    printf("freq :  %d, %d\n", big_freq, little_freq);
     return 0;
 }
+
+// int set_freq(int sbig_freq, int big_freq, int middle_freq, int little_freq) {
+//     const char* little_cpu = "/sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed";
+//     const char* middle_cpu = "/sys/devices/system/cpu/cpufreq/policy2/scaling_setspeed";
+//     const char* big_cpu = "/sys/devices/system/cpu/cpufreq/policy5/scaling_setspeed";
+//     const char* sbig_cpu = "/sys/devices/system/cpu/cpufreq/policy7/scaling_setspeed";
+
+//     FILE* file_sbig = fopen(sbig_cpu, "w");
+//     FILE* file_big = fopen(big_cpu, "w");
+//     FILE* file_middle = fopen(middle_cpu, "w");
+//     FILE* file_little = fopen(little_cpu, "w");
+
+//     if (file_big == NULL || file_little == NULL || file_middle == NULL || file_little == NULL) {
+//         printf("Failed to open file: %s or %s \n", big_cpu, little_cpu);
+//         return -1;
+//     }
+
+//     fprintf(file_sbig, "%d", sbig_freq);
+//     fprintf(file_big, "%d", big_freq);
+//     fprintf(file_middle, "%d", middle_freq);
+//     fprintf(file_little, "%d", little_freq);
+
+//     fclose(file_sbig);
+//     fclose(file_big);
+//     fclose(file_middle);
+//     fclose(file_little);
+
+//     return 0;
+// }
 
 std::vector<int> split_to_int(const std::string& input, char delimiter) {
     std::vector<int> tokens;
@@ -327,7 +414,6 @@ int main(int argc, char* argv[]) {
 
     printf("服务端已启动，等待客户端连接...\n");
 
-
     // State current_state;
     // current_state.init();
 
@@ -343,13 +429,17 @@ int main(int argc, char* argv[]) {
     FPSGet* fps = new FPSGet(view.c_str());
     fps->start();
 
+    int sbig_freq;
     int big_freq;
+    int middle_freq;
     int little_freq;
     int cur_fps;
     int mem;
 
     double little_util;
+    double middle_util;
     double big_util;
+    double sbig_util;
     // 初始化 PMU 事件
     int instructions_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
     int cycles_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
@@ -363,7 +453,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     // 接受客户端连接请求
-    set_governor("userspace");
+    // set_governor("userspace");
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
@@ -384,26 +474,35 @@ int main(int argc, char* argv[]) {
 
         int flag = 0;
         int big_freq, little_freq;
-        sscanf(buffer, "%d,%d,%d", &flag, &big_freq, &little_freq);
+        sscanf(buffer, "%d,%d,%d,%d,%d", &flag, &sbig_freq, &big_freq, &middle_freq, &little_freq);
 
         if (flag == 0) {
             auto start = std::chrono::high_resolution_clock::now();
+            sbig_freq = get_sbig_cpu_freq();
             big_freq = get_big_cpu_freq();
+            middle_freq = get_middle_cpu_freq();
             little_freq = get_little_cpu_freq();
+
             int cur_fps = fps->getFPS();
             int mem = get_swap();
 
             update_cpu_utilization(&control, utilization);
 
             little_util = 0.0;
+            middle_util = 0.0;
             big_util = 0.0;
+            sbig_util = 0.0;
 
             for (int i = 0; i < MAX_CPU_COUNT; i++) {
-                std::cout << utilization[i] << "," << i << std::endl;
-                if (i < 4) {
+                // std::cout << utilization[i] << "," << i << std::endl;
+                if (i < 2) {
                     little_util += utilization[i];
-                } else if (i < 7) {
+                } else if (i >= 2 && i < 5) {
+                    middle_util += utilization[i];
+                } else if (i >= 5 && i < 7) {
                     big_util += utilization[i];
+                } else if (i == 7) {
+                    sbig_util += utilization[i];
                 }
             }
 
@@ -433,23 +532,26 @@ int main(int argc, char* argv[]) {
             double cache_miss_rate = static_cast<double>(cache_misses) / static_cast<double>(instructions);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
-            std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+            // std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 
-
-            std::string data = std::to_string(big_freq) + "," +
+            std::string data = std::to_string(sbig_freq) + "," +
+                               std::to_string(big_freq) + "," +
+                               std::to_string(middle_freq) + "," +
                                std::to_string(little_freq) + "," +
                                std::to_string(cur_fps) + "," +
                                std::to_string(mem) + "," +
-                               std::to_string(little_util) + "," +
+                               std::to_string(sbig_util) + "," +
                                std::to_string(big_util) + "," +
+                               std::to_string(middle_util) + "," +
+                               std::to_string(little_util) + "," +
                                std::to_string(ipc) + "," +
                                std::to_string(cache_miss_rate);
             send(client_fd, data.c_str(), data.length(), 0);
-            // data_file << data << "\n";
-            // std::cout << "Data written: " << data << "\n";
-            // data_file.flush();
+            data_file << data.c_str() << "\n";
+            std::cout << "Data written: " << data << "\n";
+            data_file.flush();
         } else if (flag == 1) {
-            int result = set_freq(big_freq, little_freq);
+            int result = set_freq(sbig_freq, big_freq, middle_freq, little_freq);
             std::string data = std::to_string(result);
             send(client_fd, data.c_str(), data.length(), 0);
         }

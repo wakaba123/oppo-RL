@@ -8,14 +8,7 @@ from threading import Thread
 
 nanoseconds_per_second = 1e9
 
-def execute(cmd):
-    cmds = [ 'su',cmd, 'exit']
-    obj = subprocess.Popen("adb shell", shell= True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    info = obj.communicate(("\n".join(cmds) + "\n").encode('utf-8'))
-    return info[0].decode('utf-8')
-
 class SurfaceFlingerFPS():
-    
     def __init__(self, view,):
         self.view = view
         self.refresh_period, self.base_timestamp, self.timestamps = self.__init_frame_data__(self.view)
@@ -42,9 +35,6 @@ class SurfaceFlingerFPS():
 
 
     def __frame_data__(self, view):
-        # out = subprocess.check_output(['adb', '-s', self.ip, 'shell', 'dumpsys', 'SurfaceFlinger', '--latency', view])
-        # out = out.decode('utf-8')
-        # print(out,view)
         out = execute(f'dumpsys SurfaceFlinger --latency {view}')
         results = out.splitlines()
         refresh_period = int(results[0]) / nanoseconds_per_second
@@ -70,16 +60,21 @@ class SurfaceFlingerFPS():
         
         self.refresh_period, self.timestamps = self.__frame_data__(view)
         #print(self.timestamps)
-        time.sleep(1)
+        time.sleep(0.7)
         self.refresh_period, tss = self.__frame_data__(view)
         #print(tss)
         self.last_index = 0
         #print(tss)
-        if self.timestamps:
-                self.recent_timestamp = self.timestamps[-2]
-                self.last_index = tss.index(self.recent_timestamp)
+        try:
+            if self.timestamps:
+                    self.recent_timestamp = self.timestamps[-3]
+                    self.last_index = tss.index(self.recent_timestamp)
+        except Exception as e:
+            print(e)
+            print('here error')
+            print(self.timestamps)
                
-        self.timestamps = self.timestamps[:-2] + tss[self.last_index:]
+        self.timestamps = self.timestamps[:-3] + tss[self.last_index:]
         #time.sleep(1)
         
         ajusted_timestamps = []
@@ -105,6 +100,7 @@ class SurfaceFlingerFPS():
         return self.fps
 
 def execute(cmd):
+    # print(cmd)
     cmds = [ 'su',cmd, 'exit']
     obj = subprocess.Popen("adb shell", shell= True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     info = obj.communicate(("\n".join(cmds) + "\n").encode('utf-8'))
@@ -136,13 +132,22 @@ def get_view():
     print(f'current result is {result}')
     return re.escape(result[0])
 
-view = get_view()
-view = 'SurfaceView[com.tencent.letsgo/com.epicgames.ue4.GameActivityExt](BLAST)#875'
-print('current view is ',re.escape(view))
-print(view.replace('\\','\\\\'))
-exit(0)
-sf_fps_driver = SurfaceFlingerFPS(view)
-while True:
+# view = get_view()
+# view = 'com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity#407'
+# view = 'SurfaceView[com.tencent.tmgp.sgame/com.tencent.tmgp.sgame.SGameActivity](BLAST)#407'
+view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#965'
+view_douyin = 'SurfaceView[com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity](BLAST)#845'
+view_genshin = re.escape(view_genshin)
+view_douyin = re.escape(view_douyin)
+
+# print('current view is ',re.escape(view))
+# print(view.replace('\\','\\\\'))
+sf_fps_driver = SurfaceFlingerFPS(view_douyin)
+sf_fps_driver2 = SurfaceFlingerFPS(view_genshin)
+t = 0
+while t < 50:
     fps = float(sf_fps_driver.getFPS())
-    print(fps)
+    fps2 = float(sf_fps_driver2.getFPS())
+    t += 1
+    print(fps,fps2)
     time.sleep(1)

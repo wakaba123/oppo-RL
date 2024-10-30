@@ -5,7 +5,7 @@ import time
 
 
 def execute(cmd):
-    # print(cmd)
+    print(cmd)
     cmds = [ 'su',cmd, 'exit']
     # cmds = [cmd, 'exit']
     obj = subprocess.Popen("adb shell", shell= True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -221,9 +221,15 @@ def recover():
     subprocess.run('adb forward tcp:8888 tcp:8888', shell=True)
     execute('stop vendor.thermal-engine')
 
-    
+def test_oneplus():
+    governor = 'uag'
+    for i in [0,2,5,7]:
+        execute(f'echo {governor} > /sys/devices/system/cpu/cpufreq/policy{i}/scaling_governor')
+        print(execute(f'cat /sys/devices/system/cpu/cpufreq/policy{i}/scaling_governor'))
+            
 if __name__ == '__main__':
-    recover()
+    test_oneplus()
+    # recover()
     # get_cpu_temp()
     # get_gpu_temp()
     # get_cpu_freq()
@@ -234,7 +240,7 @@ if __name__ == '__main__':
     # print(temp)
 
     # get_cpu_freq()
-    set_cpu_governor('userspace')
+    # set_cpu_governor('userspace')
     # set_cpu_governor('performance')
     # big_freq_list=[710400,940800,1171200,1401600]
     # little_freq_list=[576000,768000,844800,1036800,1113600,1305600,1632000,1785600]

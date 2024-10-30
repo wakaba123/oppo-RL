@@ -31,4 +31,4 @@ const int MAX_QUEUE_SIZE = 200; // 设置队列的最大长度
 
 #define MAX_CPU_COUNT 8
 #define MAX_LINE_LENGTH 256
-#define TARGET_FPS 60
+#define TARGET_FPS 120

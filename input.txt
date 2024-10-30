@@ -1,1 +1,0 @@
-name1,big_cpu_freq,little_cpu_freq,big_power,little_power
