@@ -25,7 +25,7 @@ class ReplayBuffer:
     def __init__(self, max_size):
         self.buffer = deque(maxlen=max_size)
         self.f = open(data_file, "a")
-        self.load('temp2.csv')
+        # self.load('temp2.csv')
 
     def add(self, experience):
         self.buffer.append(experience)
@@ -69,6 +69,7 @@ class DQNAgent:
         )
         # self.model = load_model('dqn_model_episode_65000')
         self.target_model = DQN(input_dim, output_dim)
+        self.output_dim = output_dim
 
         dummy_input = np.zeros((1, input_dim))
         self.model(dummy_input)
@@ -118,7 +119,7 @@ class DQNAgent:
 
     def select_action(self, state, epsilon):
         if np.random.rand() < epsilon:
-            return np.random.randint(625)
+            return np.random.randint(self.output_dim)
         q_values = self.model(np.expand_dims(state, axis=0))
         return np.argmax(q_values.numpy()[0])
     
@@ -131,7 +132,7 @@ class DQNAgent:
             next_state, reward = env.step(action, state)  # 移除done
 
             # # 将经验存入ReplayBuffer
-            if(state[-1] * 60>= 60):
+            if(state[-1] * 30 >= 28):
                 print('here fps is ok')
                 self.buffer.add((state, action, reward, next_state))
                 self.buffer.add((state, action, reward, next_state))
@@ -139,7 +140,6 @@ class DQNAgent:
                 self.buffer.add((state, action, reward, next_state))
 
             self.buffer.add((state, action, reward, next_state))
-            print(reward)
 
             # 从buffer中训练
             loss = self.train_step()
@@ -154,10 +154,9 @@ class DQNAgent:
                 self.model.save(f"dqn_model_episode_{episode}", save_format="tf")
 
             print(f"Episode {episode}, Loss: {loss} , Epsilon: {epsilon:.3f}")
-            
 
 env = Environment()
-dqn = DQNAgent(10, 625)
+dqn = DQNAgent(10, 64)
 dqn.train(env, episodes=20001, epsilon_start=0.99, epsilon_end=0.02)
 # dqn.train(env, episodes=100001, epsilon_start=0, epsilon_end=0.02)
 

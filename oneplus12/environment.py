@@ -2,8 +2,9 @@ import numpy as np
 import subprocess
 import socket
 import time
+import bisect
 
-target_fps = 60
+target_fps = 30
 
 def execute(cmd):
     print(cmd)
@@ -20,11 +21,16 @@ def normalize_freq(sbig_freq, big_freq, middle_freq, little_freq):
     return int(sbig_freq) / freq_policy7[-1], int(big_freq) / freq_policy5[-1], int(middle_freq) / freq_policy2[-1], int(little_freq) / freq_policy0[-1]
 
 def normalize_util(sbig_util, big_util, middle_util, little_util):
-    return float(sbig_util) / 100, float(big_util) / 100, float(middle_util) / 100, float(little_util) / 100
+    # print(sbig_util, big_util, middle_util, little_util)
+    return float(sbig_util) / 1, float(big_util) /1, float(middle_util) / 1, float(little_util) / 1
 
 def normalize_fps(fps):
     return int(fps) / target_fps
 
+def find_ceil_index(arr, value):
+    index = bisect.bisect_left(arr, value)
+    res = index if index < len(arr) else -1  
+    return res
 
 freq_policy0 = np.array([364800, 460800, 556800, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1344000, 1459200, 1574400, 1689600, 1804800, 1920000, 2035200, 2150400, 2265600])
 power_policy0 = np.array([4, 5.184, 6.841, 8.683, 10.848, 12.838, 14.705, 17.13, 19.879, 21.997, 25.268, 28.916, 34.757, 40.834, 46.752, 50.616, 56.72, 63.552])
@@ -42,7 +48,20 @@ freq_policy7 = np.array([480000, 576000, 672000, 787200, 902400, 1017600, 113280
 power_policy7 = np.array([31.094, 39.464, 47.237, 59.888, 70.273, 84.301, 97.431, 114.131, 126.161, 142.978, 160.705, 181.76, 201.626, 223.487, 240.979, 253.072, 279.625, 297.204, 343.298, 356.07, 369.488, 393.457, 408.885, 425.683, 456.57, 481.387, 511.25, 553.637, 592.179, 605.915, 655.484])
 
 def get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx):
-    reward =  ( 1509.68 - power_policy7[sbig_freq_idx] + power_policy5[big_freq_idx] + power_policy2[middle_freq_idx] + power_policy0[little_freq_idx] ) / 10  + 30 * (fps - target_fps) 
+    cpu_nums = [2,3,2,1]
+    power =  power_policy7[sbig_freq_idx] * cpu_nums[3] + power_policy5[big_freq_idx] * cpu_nums[2] + power_policy2[middle_freq_idx] * cpu_nums[1] + power_policy0[little_freq_idx] * cpu_nums[0] 
+    # target_fps = 60
+    target_fps = 60
+    target_power = 470
+    # target_power = 166.6
+    reward = 0
+
+    if fps < target_fps - 5:
+        reward -= 100 * (target_fps - fps)
+    if fps < target_fps - 2:
+        reward -= 50
+
+    reward +=  (target_power - power) 
     return reward
 
 
@@ -51,6 +70,12 @@ class Environment:
         self.name = 'oneplus12'
         self.server_ip = "192.168.2.103"  
         self.server_port = 8888
+        self.curr_sbig_freq = 0
+        self.curr_big_freq = 0
+        self.curr_middle_freq = 0
+        self.curr_little_freq = 0
+        self.get_state()
+        self.reward_file = open("reward_file.txt", "w")
 
     def send_socket_message(self, msg):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -67,6 +92,7 @@ class Environment:
         (sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq,
         fps, mem, sbig_util, big_util, middle_util, little_util,
         ipc, cache_miss) = temp
+        self.curr_sbig_freq, self.curr_big_freq, self.curr_middle_freq, self.curr_little_freq = int(sbig_cpu_freq), int(big_cpu_freq), int(middle_cpu_freq), int(little_cpu_freq)
         normal_sbig_cpu_freq, normal_big_cpu_freq, normal_middle_cpu_freq, normal_little_cpu_freq = normalize_freq(sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq)
         normal_sbig_util, normal_big_util, normal_middle_util, normal_little_util = normalize_util(sbig_util, big_util, middle_util, little_util)
         normal_mem = normalize_mem(mem)
@@ -84,7 +110,7 @@ class Environment:
         return self.get_state()
         
 
-    def parse_action(self, action):
+    def parse_action(self, action): # freqs中存储着利用率算出的频点
         # 每个核有 5 个频点 (0 到 4)，总共有 625 个动作
         num_frequencies = 5
     
@@ -93,13 +119,48 @@ class Environment:
         big_index = (action // (num_frequencies ** 2)) % num_frequencies
         middle_index = (action // num_frequencies) % num_frequencies
         little_index = action % num_frequencies
-    
+
         return int(sbig_index / 5 * len(freq_policy7)) , int(big_index / 5 * len(freq_policy5)), int(middle_index / 5 * len(freq_policy2)), int(little_index / 5 * len(freq_policy0))
 
+    def parse_action2(self, action, state):
+        print(action)
+        target_load = 80
+        sbig_cpu_util , big_cpu_util, middle_cpu_util, little_cpu_util = state[4], state[5], state[6], state[7]
+        sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq = self.curr_sbig_freq, self.curr_big_freq, self.curr_middle_freq, self.curr_little_freq
+        # print(sbig_cpu_freq, sbig_cpu_util, big_cpu_freq, big_cpu_util, middle_cpu_freq, middle_cpu_util, little_cpu_freq, little_cpu_util)
+        
+        sbig_target_freq_index = find_ceil_index(freq_policy7,sbig_cpu_freq * 100 * sbig_cpu_util / target_load)
+        big_target_freq_index = find_ceil_index(freq_policy5,big_cpu_freq * 100 * big_cpu_util / target_load)
+        middle_target_freq_index = find_ceil_index(freq_policy2, middle_cpu_freq * 100 *  middle_cpu_util / target_load)
+        little_target_freq_index = find_ceil_index(freq_policy0, little_cpu_freq *100 * little_cpu_util / target_load)
+        print(sbig_target_freq_index, big_target_freq_index, middle_target_freq_index, little_target_freq_index)
+        # return sbig_target_freq_index, big_target_freq_index, middle_target_freq_index, little_target_freq_index
+        mapping = [-2,-1,0,1,2]
+        num_frequencies = 5
+        # 计算每个核的频点索引
+        sbig_index_action = sbig_target_freq_index+ mapping[(action // (num_frequencies ** 3)) % num_frequencies]
+        big_index_action = big_target_freq_index+ mapping[(action // (num_frequencies ** 2)) % num_frequencies]
+        middle_index_action = middle_target_freq_index+ mapping[(action // num_frequencies) % num_frequencies]
+        little_index_action = little_target_freq_index + mapping[action % num_frequencies]
 
-    def step(self, action):
+        sbig_index_action = max(0, min(sbig_index_action, len(freq_policy7) - 1))
+        big_index_action = max(0, min(big_index_action, len(freq_policy5) - 1))
+        middle_index_action = max(0, min(middle_index_action, len(freq_policy2) - 1))
+        little_index_action = max(0, min(little_index_action, len(freq_policy0) - 1))
+
+        return (sbig_index_action, big_index_action, middle_index_action, little_index_action)
+
+    def parse_action_for_test(self, action):
+        cluster_0 = action % 8
+        cluster_2 = action // 8
+        return int(cluster_0 * len(freq_policy0) / 8), 0, int(cluster_2 * len(freq_policy5) / 8), 0
+
+        
+    def step(self, action, old_state):
         # set action
-        sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx = self.parse_action(action)
+        # sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx = self.parse_action(action)
+        sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx = self.parse_action2(action, old_state)
+        # sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx = self.parse_action_for_test(action)
         print(sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
         sbig_freq, big_freq, middle_freq, little_freq = freq_policy7[sbig_freq_idx], freq_policy5[big_freq_idx], freq_policy2[middle_freq_idx], freq_policy0[little_freq_idx]
         self.send_socket_message(f"1,{sbig_freq},{big_freq},{middle_freq},{little_freq}")
@@ -110,7 +171,26 @@ class Environment:
         fps = state[-1] * target_fps
 
         reward = get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
+        self.reward_file.write(str(reward) + '\n')
         return  state, reward
 
-        
-            
+    # def test_step(self):
+    #     # set action
+    #     i = 0
+    #     while i < 625:
+    #         sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx = self.parse_action(i)
+    #         print(i)
+    #         print(sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
+    #         sbig_freq, big_freq, middle_freq, little_freq = freq_policy7[sbig_freq_idx], freq_policy5[big_freq_idx], freq_policy2[middle_freq_idx], freq_policy0[little_freq_idx]
+    #         self.send_socket_message(f"1,{sbig_freq},{big_freq},{middle_freq},{little_freq}")
+
+    #         # get state
+    #         temp = self.send_socket_message('0').split(',')
+    #         (sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq,
+    #         fps, mem, sbig_util, big_util, middle_util, little_util,
+    #         ipc, cache_miss) = temp
+
+    #         print(sbig_freq, big_freq, middle_freq, little_freq)
+    #         print(sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq)
+    #         i += 1
+

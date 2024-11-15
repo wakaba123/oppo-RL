@@ -496,13 +496,17 @@ int main(int argc, char* argv[]) {
             for (int i = 0; i < MAX_CPU_COUNT; i++) {
                 // std::cout << utilization[i] << "," << i << std::endl;
                 if (i < 2) {
-                    little_util += utilization[i];
+                    // little_util += utilization[i];
+                    little_util = std::max(little_util ,utilization[i]);
                 } else if (i >= 2 && i < 5) {
-                    middle_util += utilization[i];
+                    // middle_util += utilization[i];
+                    middle_util = std::max(utilization[i], middle_util);
                 } else if (i >= 5 && i < 7) {
-                    big_util += utilization[i];
+                    // big_util += utilization[i];
+                    big_util = std::max(utilization[i], big_util);
                 } else if (i == 7) {
-                    sbig_util += utilization[i];
+                    // sbig_util += utilization[i];
+                    big_util =  std::max(utilization[i], sbig_util);
                 }
             }
 
@@ -555,6 +559,7 @@ int main(int argc, char* argv[]) {
             std::string data = std::to_string(result);
             send(client_fd, data.c_str(), data.length(), 0);
         }
+        close(client_fd);
     }
     close(instructions_fd);
     close(cycles_fd);

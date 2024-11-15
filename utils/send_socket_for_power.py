@@ -29,10 +29,9 @@ if __name__ == "__main__":
         print("Sending first message...")
         send_socket_message(0)  # 第一次发送消息
     
-        # 等待2秒后再次发送消息
-        time.sleep(1)
+        time.sleep(10)
     
         print("Sending second message...")
-        # send_socket_message(1)  # 第二次发送消息
-        send_socket_message(2)
+        send_socket_message(1)  # 第二次发送消息
+        # send_socket_message(2)
         break

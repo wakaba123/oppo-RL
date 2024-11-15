@@ -4,7 +4,6 @@ import random
 from collections import deque
 from environment import Environment
 from tensorflow.keras.models import load_model
-import pickle
 import csv
 
 def get_replay_buffer_from_csv(file_path):
@@ -19,19 +18,13 @@ def get_replay_buffer_from_csv(file_path):
             buffer.append((state, action, reward, next_state))
     return buffer
 
-data_file = "data_file.csv"
-
 class ReplayBuffer:
     def __init__(self, max_size):
         self.buffer = deque(maxlen=max_size)
-        self.f = open(data_file, "a")
-        self.load('temp2.csv')
+        self.load('temp.csv')
 
     def add(self, experience):
         self.buffer.append(experience)
-        line = ",".join(map(str, experience[0])) + ',' + ",".join(map(str, experience[3])) + ',' + str(experience[1]) + ',' + str(experience[2]) + '\n'
-        # print(line)
-        self.f.write(line)
 
     def sample(self, batch_size):
         indices = np.random.choice(len(self.buffer), batch_size, replace=False)
@@ -41,10 +34,9 @@ class ReplayBuffer:
 
     def size(self):
         return len(self.buffer)
-
+    
     def load(self, file_path):
         self.buffer = get_replay_buffer_from_csv(file_path)
-
 
 class DQN(tf.keras.Model):
     def __init__(self, input_dim, output_dim):
@@ -67,7 +59,8 @@ class DQNAgent:
             loss=tf.keras.losses.MeanSquaredError(),
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate)
         )
-        # self.model = load_model('dqn_model_episode_65000')
+        # self.model = load_model('dqn_model_episode_10000_action')
+        # self.model = load_model('dqn_model_episode_20000_final')
         self.target_model = DQN(input_dim, output_dim)
 
         dummy_input = np.zeros((1, input_dim))
@@ -80,7 +73,6 @@ class DQNAgent:
         self.batch_size = batch_size
         self.buffer = ReplayBuffer(buffer_size)
         self.loss_fn = tf.keras.losses.MeanSquaredError()
-        # self.loss_fn = tf.keras.losses.Huber()
         
     def update_target_network(self):
         self.target_model.set_weights(self.model.get_weights())
@@ -122,28 +114,72 @@ class DQNAgent:
         q_values = self.model(np.expand_dims(state, axis=0))
         return np.argmax(q_values.numpy()[0])
     
+    @tf.function(input_signature=[
+        tf.TensorSpec([64, 10], tf.float32),
+        tf.TensorSpec([64, 1], tf.float32),
+    ]) 
+    def train_online(self, batch_states, batch_rewards):
+        with tf.GradientTape() as tape:
+            prediction = self.model(batch_states)
+            loss = self.model.loss(batch_rewards, prediction)
+        gradients = tape.gradient(loss, self.model.trainable_variables)
+        self.model.optimizer.apply_gradients(
+            zip(gradients, self.model.trainable_variables))
+        result = {"loss": loss}
+        return result
+
+    @tf.function(input_signature=[
+        tf.TensorSpec([1, 10], tf.float32),
+    ])
+    def infer(self, x):
+        pred =self.model(x)
+        return {
+            "output": pred
+        }
+
     def train(self, env, episodes=1000, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.9995):
+        SAVED_MODEL_DIR = "dqn_model_episode_10000_action_online"
+        tf.saved_model.save(
+            self.model,
+            SAVED_MODEL_DIR,
+            signatures={
+                'train_online':
+                    self.train_online.get_concrete_function(),
+                'infer':
+                    self.infer.get_concrete_function(),
+            }
+        )
+        converter = tf.lite.TFLiteConverter.from_saved_model(SAVED_MODEL_DIR)
+        converter.target_spec.supported_ops = [
+            tf.lite.OpsSet.TFLITE_BUILTINS,  # enable TensorFlow Lite ops.
+            tf.lite.OpsSet.SELECT_TF_OPS  # enable TensorFlow ops.
+        ]
+        converter.experimental_enable_resource_variables = True
+        tflite_model = converter.convert()
+        open('dqn.tflite', 'wb').write(tflite_model)
+        exit(0)
+
         epsilon = epsilon_start
-        state = env.reset()
+        # state = env.reset()
 
         for episode in range(episodes):
-            action = self.select_action(state, epsilon)
-            next_state, reward = env.step(action, state)  # 移除done
+            # action = self.select_action(state, epsilon)
+            # next_state, reward = env.step(action, state)  # 移除done
 
             # # 将经验存入ReplayBuffer
-            if(state[-1] * 60>= 60):
-                print('here fps is ok')
-                self.buffer.add((state, action, reward, next_state))
-                self.buffer.add((state, action, reward, next_state))
-                self.buffer.add((state, action, reward, next_state))
-                self.buffer.add((state, action, reward, next_state))
+            # if(state[-1] * 60>= 55):
+            #     print('here fps is ok')
+            #     self.buffer.add((state, action, reward, next_state))
+            #     self.buffer.add((state, action, reward, next_state))
+            #     self.buffer.add((state, action, reward, next_state))
+            #     self.buffer.add((state, action, reward, next_state))
 
-            self.buffer.add((state, action, reward, next_state))
-            print(reward)
+            # self.buffer.add((state, action, reward, next_state))
+            # print(reward)
 
             # 从buffer中训练
             loss = self.train_step()
-            state = next_state
+            # state = next_state
 
             # 更新 epsilon
             epsilon = max(epsilon_end, epsilon * epsilon_decay)
@@ -153,11 +189,12 @@ class DQNAgent:
             if episode % 5000 == 0:
                 self.model.save(f"dqn_model_episode_{episode}", save_format="tf")
 
-            print(f"Episode {episode}, Loss: {loss} , Epsilon: {epsilon:.3f}")
+            # print(f"Episode {episode}, Loss: {loss} , Epsilon: {epsilon:.3f}")
             
 
-env = Environment()
+# env = Environment()
+env = None
 dqn = DQNAgent(10, 625)
-dqn.train(env, episodes=20001, epsilon_start=0.99, epsilon_end=0.02)
-# dqn.train(env, episodes=100001, epsilon_start=0, epsilon_end=0.02)
+# dqn.train(env, episodes=20001, epsilon_start=0.99, epsilon_end=0.02)
+dqn.train(env, episodes=100001, epsilon_start=0, epsilon_end=0.02)
 

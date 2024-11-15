@@ -135,8 +135,9 @@ def get_view():
 # view = get_view()
 # view = 'com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity#407'
 # view = 'SurfaceView[com.tencent.tmgp.sgame/com.tencent.tmgp.sgame.SGameActivity](BLAST)#407'
-view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#965'
-view_douyin = 'SurfaceView[com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity](BLAST)#845'
+view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#231'
+# view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#184'
+view_douyin = 'SurfaceView[com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity](BLAST)#313'
 view_genshin = re.escape(view_genshin)
 view_douyin = re.escape(view_douyin)
 

@@ -2,7 +2,23 @@ import configparser
 import subprocess
 import re
 import time
+import numpy as np
 
+
+freq_policy0 = np.array([364800, 460800, 556800, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1344000, 1459200, 1574400, 1689600, 1804800, 1920000, 2035200, 2150400, 2265600])
+power_policy0 = np.array([4, 5.184, 6.841, 8.683, 10.848, 12.838, 14.705, 17.13, 19.879, 21.997, 25.268, 28.916, 34.757, 40.834, 46.752, 50.616, 56.72, 63.552])
+
+# Data for policy2
+freq_policy2 = np.array([499200, 614400, 729600, 844800, 960000, 1075200, 1190400, 1286400, 1401600, 1497600, 1612800, 1708800, 1824000, 1920000, 2035200, 2131200, 2188800, 2246400, 2323200, 2380800, 2438400, 2515200, 2572800, 2630400, 2707200, 2764800, 2841600, 2899200, 2956800, 3014400, 3072000, 3148800])
+power_policy2 = np.array([15.386, 19.438, 24.217, 28.646, 34.136, 41.231, 47.841, 54.705, 58.924, 68.706, 77.116, 86.37, 90.85, 107.786, 121.319, 134.071, 154.156, 158.732, 161.35, 170.445, 183.755, 195.154, 206.691, 217.975, 235.895, 245.118, 258.857, 268.685, 289.715, 311.594, 336.845, 363.661])
+
+# Data for policy5
+freq_policy5 = np.array([499200, 614400, 729600, 844800, 960000, 1075200, 1190400, 1286400, 1401600, 1497600, 1612800, 1708800, 1824000, 1920000, 2035200, 2131200, 2188800, 2246400, 2323200, 2380800, 2438400, 2515200, 2572800, 2630400, 2707200, 2764800, 2841600, 2899200, 2956800])
+power_policy5 = np.array([15.53, 20.011, 24.855, 30.096, 35.859, 43.727, 51.055, 54.91, 64.75, 72.486, 80.577, 88.503, 99.951, 109.706, 114.645, 134.716, 154.972, 160.212, 164.4, 167.938, 178.369, 187.387, 198.433, 209.545, 226.371, 237.658, 261.999, 275.571, 296.108])
+
+# Data for policy7
+freq_policy7 = np.array([480000, 576000, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1363200, 1478400, 1593600, 1708800, 1824000, 1939200, 2035200, 2112000, 2169600, 2246400, 2304000, 2380800, 2438400, 2496000, 2553600, 2630400, 2688000, 2745600, 2803200, 2880000, 2937600, 2995200, 3052800])
+power_policy7 = np.array([31.094, 39.464, 47.237, 59.888, 70.273, 84.301, 97.431, 114.131, 126.161, 142.978, 160.705, 181.76, 201.626, 223.487, 240.979, 253.072, 279.625, 297.204, 343.298, 356.07, 369.488, 393.457, 408.885, 425.683, 456.57, 481.387, 511.25, 553.637, 592.179, 605.915, 655.484])
 
 def execute(cmd):
     print(cmd)
@@ -98,16 +114,22 @@ def turn_off_on_core(type, on): # type should be 0,1,2   on should be 0 , 1
 
 # get freq list from config file
 def get_freq_list(device_name):
+    device_name = 'k20p'
     config = configparser.ConfigParser()
     config.read('/home/wakaba/Desktop/zTT/utils/config.ini')
-
-    cpu_type = check_soc()
-    cpu_type = len(cpu_type)
 
     freq_lists = {
         2: ['little_freq_list','big_freq_list'],
         3: ['little_freq_list', 'big_freq_list', 'super_freq_list']
     }
+    cpu_freq_list = [config.get(device_name, freq).split() for freq in freq_lists[2]]
+    print(cpu_freq_list)
+
+    cpu_type = check_soc()
+    cpu_type = len(cpu_type)
+    return 0
+
+    
     if cpu_type in freq_lists:
         cpu_freq_list = [config.get(device_name, freq).split() for freq in freq_lists[cpu_type]]
         if cpu_type == 2:
@@ -223,9 +245,11 @@ def recover():
 
 def test_oneplus():
     governor = 'uag'
+    freq_policys = [freq_policy0, freq_policy0, freq_policy2, freq_policy2, freq_policy2, freq_policy5, freq_policy5, freq_policy7]
     for i in [0,2,5,7]:
         execute(f'echo {governor} > /sys/devices/system/cpu/cpufreq/policy{i}/scaling_governor')
-        print(execute(f'cat /sys/devices/system/cpu/cpufreq/policy{i}/scaling_governor'))
+        execute(f'echo {freq_policys[i][-1]} > /sys/devices/system/cpu/cpufreq/policy{i}/scaling_max_freq')
+        execute(f'echo {freq_policys[i][0]} > /sys/devices/system/cpu/cpufreq/policy{i}/scaling_min_freq')
             
 if __name__ == '__main__':
     test_oneplus()

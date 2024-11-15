@@ -3,8 +3,6 @@ import numpy as np
 import random
 from collections import deque
 from environment import Environment
-from tensorflow.keras.models import load_model
-import pickle
 import csv
 
 def get_replay_buffer_from_csv(file_path):
@@ -25,12 +23,11 @@ class ReplayBuffer:
     def __init__(self, max_size):
         self.buffer = deque(maxlen=max_size)
         self.f = open(data_file, "a")
-        self.load('temp2.csv')
+        # self.load('temp2.csv')
 
     def add(self, experience):
         self.buffer.append(experience)
         line = ",".join(map(str, experience[0])) + ',' + ",".join(map(str, experience[3])) + ',' + str(experience[1]) + ',' + str(experience[2]) + '\n'
-        # print(line)
         self.f.write(line)
 
     def sample(self, batch_size):
@@ -44,7 +41,6 @@ class ReplayBuffer:
 
     def load(self, file_path):
         self.buffer = get_replay_buffer_from_csv(file_path)
-
 
 class DQN(tf.keras.Model):
     def __init__(self, input_dim, output_dim):
@@ -60,28 +56,27 @@ class DQN(tf.keras.Model):
         x = self.dense2(x)
         return self.dense3(x)
 
-class DQNAgent:
-    def __init__(self, input_dim, output_dim, learning_rate=0.001, gamma=0.02, buffer_size=500000, batch_size=64):
+class DDQNAgent:
+    def __init__(self, input_dim, output_dim, learning_rate=0.001, gamma=0.99, buffer_size=500000, batch_size=64):
         self.model = DQN(input_dim, output_dim)
+        self.target_model = DQN(input_dim, output_dim)
+        self.output_dim = output_dim
         self.model.compile(
             loss=tf.keras.losses.MeanSquaredError(),
             optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate)
         )
-        # self.model = load_model('dqn_model_episode_65000')
-        self.target_model = DQN(input_dim, output_dim)
-
+        
+        # 初始化网络
         dummy_input = np.zeros((1, input_dim))
         self.model(dummy_input)
         self.target_model(dummy_input)
-        self.target_model.set_weights(self.model.get_weights())
+        self.update_target_network()
         
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
         self.gamma = gamma
         self.batch_size = batch_size
         self.buffer = ReplayBuffer(buffer_size)
         self.loss_fn = tf.keras.losses.MeanSquaredError()
-        # self.loss_fn = tf.keras.losses.Huber()
-        
+
     def update_target_network(self):
         self.target_model.set_weights(self.model.get_weights())
 
@@ -91,34 +86,30 @@ class DQNAgent:
 
         # 从ReplayBuffer采样
         states, actions, rewards, next_states = self.buffer.sample(self.batch_size)
-        
+
         with tf.GradientTape() as tape:
             q_values = self.model(states)
-            q_next = self.target_model(next_states)
             q_target = q_values.numpy()
-            if(np.any(np.isnan(q_next))):
-                print('=-------------=--------------=')
-                print(q_next)
+            
+            # 使用当前Q网络选择下一步的动作
+            q_next_online = self.model(next_states)
+            q_next_target = self.target_model(next_states)
 
-            # 计算Q-learning目标
             for i in range(self.batch_size):
-                target = rewards[i] + self.gamma * np.max(q_next[i])
+                # DDQN的目标Q值：使用在线网络选择动作，目标网络计算Q值
+                best_next_action = np.argmax(q_next_online[i])
+                target = rewards[i] + self.gamma * q_next_target[i][best_next_action]
                 q_target[i][actions[i]] = target
-                # print(rewards[i], target)
-
-            if np.any(np.isnan(q_values)) or np.any(np.isnan(q_target)):
-                print("Warning: NaN values in q_values or q_target.")
-                return 0xffffffff   # 或者返回一个默认的损失值
 
             loss = self.loss_fn(q_values, q_target)
         
         gradients = tape.gradient(loss, self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
+        self.model.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
         return loss
 
     def select_action(self, state, epsilon):
         if np.random.rand() < epsilon:
-            return np.random.randint(625)
+            return np.random.randint(self.output_dim)  # Use self.output_dim instead of self.model.output_shape
         q_values = self.model(np.expand_dims(state, axis=0))
         return np.argmax(q_values.numpy()[0])
     
@@ -128,18 +119,10 @@ class DQNAgent:
 
         for episode in range(episodes):
             action = self.select_action(state, epsilon)
-            next_state, reward = env.step(action, state)  # 移除done
+            next_state, reward = env.step(action, state) 
 
-            # # 将经验存入ReplayBuffer
-            if(state[-1] * 60>= 60):
-                print('here fps is ok')
-                self.buffer.add((state, action, reward, next_state))
-                self.buffer.add((state, action, reward, next_state))
-                self.buffer.add((state, action, reward, next_state))
-                self.buffer.add((state, action, reward, next_state))
-
+            # 将经验存入ReplayBuffer
             self.buffer.add((state, action, reward, next_state))
-            print(reward)
 
             # 从buffer中训练
             loss = self.train_step()
@@ -154,10 +137,7 @@ class DQNAgent:
                 self.model.save(f"dqn_model_episode_{episode}", save_format="tf")
 
             print(f"Episode {episode}, Loss: {loss} , Epsilon: {epsilon:.3f}")
-            
 
 env = Environment()
-dqn = DQNAgent(10, 625)
-dqn.train(env, episodes=20001, epsilon_start=0.99, epsilon_end=0.02)
-# dqn.train(env, episodes=100001, epsilon_start=0, epsilon_end=0.02)
-
+ddqn = DDQNAgent(10, 64)
+ddqn.train(env, episodes=20001, epsilon_start=0.99, epsilon_end=0.02)
