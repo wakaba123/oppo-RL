@@ -4,7 +4,7 @@ import socket
 import time
 import bisect
 
-target_fps = 30
+target_fps = 120
 
 def execute(cmd):
     print(cmd)
@@ -50,10 +50,7 @@ power_policy7 = np.array([31.094, 39.464, 47.237, 59.888, 70.273, 84.301, 97.431
 def get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx):
     cpu_nums = [2,3,2,1]
     power =  power_policy7[sbig_freq_idx] * cpu_nums[3] + power_policy5[big_freq_idx] * cpu_nums[2] + power_policy2[middle_freq_idx] * cpu_nums[1] + power_policy0[little_freq_idx] * cpu_nums[0] 
-    # target_fps = 60
-    target_fps = 60
     target_power = 470
-    # target_power = 166.6
     reward = 0
 
     if fps < target_fps - 5:
@@ -64,20 +61,25 @@ def get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_id
     reward +=  (target_power - power) 
     return reward
 
-
 class Environment:
-    def __init__(self):
+    def __init__(self, view):
         self.name = 'oneplus12'
-        self.server_ip = "192.168.2.103"  
+        self.server_ip = "192.168.2.111"  
+        # self.server_ip = "127.0.0.1"  
         self.server_port = 8888
         self.curr_sbig_freq = 0
         self.curr_big_freq = 0
         self.curr_middle_freq = 0
         self.curr_little_freq = 0
-        self.get_state()
+        self.view = view
+        try:
+            self.get_state()
+        except:
+            print('first time get state error')
         self.reward_file = open("reward_file.txt", "w")
 
     def send_socket_message(self, msg):
+        return ",".join(['0' for i in range(12)])
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect((self.server_ip, self.server_port))
         message = str(msg)  
@@ -86,6 +88,9 @@ class Environment:
         res = response.decode('utf-8')
         client_socket.close()
         return res
+
+    def init_view(self):
+        self.send_socket_message(f'2,0,0,0,0,{self.view}')
 
     def get_state(self):
         temp = self.send_socket_message('0').split(',')
@@ -97,7 +102,7 @@ class Environment:
         normal_sbig_util, normal_big_util, normal_middle_util, normal_little_util = normalize_util(sbig_util, big_util, middle_util, little_util)
         normal_mem = normalize_mem(mem)
         normal_fps = normalize_fps(fps)
-        return (normal_sbig_cpu_freq, normal_big_cpu_freq, normal_middle_cpu_freq, normal_little_cpu_freq,normal_sbig_util, normal_big_util, normal_middle_util, normal_little_util, normal_mem, normal_fps)
+        return (normal_sbig_cpu_freq, normal_big_cpu_freq, normal_middle_cpu_freq, normal_little_cpu_freq,normal_sbig_util, normal_big_util, normal_middle_util, normal_little_util, normal_mem, normal_fps) , (sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq,sbig_util, big_util, middle_util, little_util, mem, fps)
     
     def reset(self):
         governor = 'performance'
@@ -136,6 +141,7 @@ class Environment:
         print(sbig_target_freq_index, big_target_freq_index, middle_target_freq_index, little_target_freq_index)
         # return sbig_target_freq_index, big_target_freq_index, middle_target_freq_index, little_target_freq_index
         mapping = [-2,-1,0,1,2]
+        # mapping = [0,0,0,0,0]
         num_frequencies = 5
         # 计算每个核的频点索引
         sbig_index_action = sbig_target_freq_index+ mapping[(action // (num_frequencies ** 3)) % num_frequencies]
@@ -167,30 +173,9 @@ class Environment:
 
         time.sleep(0.01)
         # get state
-        state = self.get_state()
+        state, raw_state = self.get_state()
         fps = state[-1] * target_fps
 
         reward = get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
         self.reward_file.write(str(reward) + '\n')
-        return  state, reward
-
-    # def test_step(self):
-    #     # set action
-    #     i = 0
-    #     while i < 625:
-    #         sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx = self.parse_action(i)
-    #         print(i)
-    #         print(sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
-    #         sbig_freq, big_freq, middle_freq, little_freq = freq_policy7[sbig_freq_idx], freq_policy5[big_freq_idx], freq_policy2[middle_freq_idx], freq_policy0[little_freq_idx]
-    #         self.send_socket_message(f"1,{sbig_freq},{big_freq},{middle_freq},{little_freq}")
-
-    #         # get state
-    #         temp = self.send_socket_message('0').split(',')
-    #         (sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq,
-    #         fps, mem, sbig_util, big_util, middle_util, little_util,
-    #         ipc, cache_miss) = temp
-
-    #         print(sbig_freq, big_freq, middle_freq, little_freq)
-    #         print(sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq)
-    #         i += 1
-
+        return  state, reward, raw_state
