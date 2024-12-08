@@ -26,7 +26,7 @@ FPSGet::FPSGet(const std::string& view) {
         }
     }
     if (base_timestamp == 0) {
-        std::cout << "请保证前台应用与view对应，期望的view为" << this->view << "\n";
+        std::cout << "请保证前台应用与view对应" << this->view << "\n";
         return ;
 
     }
@@ -40,6 +40,18 @@ void FPSGet::start() {
     m_fps_thread = std::move(fps_thread);
     // fps_thread.detach();
 }
+
+FPSGet::~FPSGet() {
+    // 停止线程
+    stop();
+
+    // 清理队列
+    frame_queue.clear();
+
+    // 如果有其他动态资源分配，添加对应的清理代码
+    std::cout << "FPSGet object for view \"" << view << "\" is destroyed." << std::endl;
+}
+
 
 void FPSGet::stop() {
     while_flag = false;

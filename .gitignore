@@ -13,5 +13,6 @@ output.csv
 temp.py
 temp.txt
 dqn_model_episode_*
-
+*/android-ndk-r10b/*
+*/my_model_*/
 

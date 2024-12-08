@@ -174,22 +174,29 @@ int main() {
             close(server_fd);
             exit(EXIT_FAILURE);
         }
+        // std::cout << "here get first package" << std::endl;
 
         char buffer[1024] = {0};
         read(new_socket, buffer, 1024);
         flag = atoi(buffer);
-        close(new_socket);
+        // std::cout << "here flag is " << buffer<< std::endl;
 
         if (flag == 0) {
             time_in_state1 = get_time_in_state(policies);  // 第一次读取 time_in_state
         } else if (flag == 1) {
+            // std::cout << "here flag is 1, print power during this time" << std::endl;
             time_in_state2 = get_time_in_state(policies);  // 第二次读取 time_in_state
             double power = calculate_power(freqs, powers, time_in_state1, time_in_state2);
             std::cout << power << std::endl;
+            std::string data = std::to_string(power);
+            send(new_socket, data.c_str(), data.length(), 0);
         } else if (flag == 2) {
+            // std::cout << "here flag is 2, print time_in_state" << std::endl;
             time_in_state2 = get_time_in_state(policies);  // 第二次读取 time_in_state
             calculate_time(time_in_state1, time_in_state2);
         }
+
+        close(new_socket);
     }
 
     close(server_fd);

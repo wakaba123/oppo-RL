@@ -318,35 +318,6 @@ int set_freq(int sbig_freq, int big_freq, int middle_freq, int little_freq) {
     return 0;
 }
 
-// int set_freq(int sbig_freq, int big_freq, int middle_freq, int little_freq) {
-//     const char* little_cpu = "/sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed";
-//     const char* middle_cpu = "/sys/devices/system/cpu/cpufreq/policy2/scaling_setspeed";
-//     const char* big_cpu = "/sys/devices/system/cpu/cpufreq/policy5/scaling_setspeed";
-//     const char* sbig_cpu = "/sys/devices/system/cpu/cpufreq/policy7/scaling_setspeed";
-
-//     FILE* file_sbig = fopen(sbig_cpu, "w");
-//     FILE* file_big = fopen(big_cpu, "w");
-//     FILE* file_middle = fopen(middle_cpu, "w");
-//     FILE* file_little = fopen(little_cpu, "w");
-
-//     if (file_big == NULL || file_little == NULL || file_middle == NULL || file_little == NULL) {
-//         printf("Failed to open file: %s or %s \n", big_cpu, little_cpu);
-//         return -1;
-//     }
-
-//     fprintf(file_sbig, "%d", sbig_freq);
-//     fprintf(file_big, "%d", big_freq);
-//     fprintf(file_middle, "%d", middle_freq);
-//     fprintf(file_little, "%d", little_freq);
-
-//     fclose(file_sbig);
-//     fclose(file_big);
-//     fclose(file_middle);
-//     fclose(file_little);
-
-//     return 0;
-// }
-
 std::vector<int> split_to_int(const std::string& input, char delimiter) {
     std::vector<int> tokens;
     std::string token;
@@ -384,10 +355,6 @@ int main(int argc, char* argv[]) {
     int server_fd, client_fd, valread;
     struct sockaddr_in server_addr;
     char buffer[1024] = {0};
-    if (argc != 2) {
-        printf("usage: ./server <view_name>\n");
-    }
-    std::string view = argv[1];
 
     // 创建Socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -426,8 +393,7 @@ int main(int argc, char* argv[]) {
     initialize_cpu_control(&control);
     double utilization[MAX_CPU_COUNT];
 
-    FPSGet* fps = new FPSGet(view.c_str());
-    fps->start();
+    FPSGet* fps = NULL;
 
     int sbig_freq;
     int big_freq;
@@ -447,7 +413,7 @@ int main(int argc, char* argv[]) {
     if (instructions_fd == -1 || cycles_fd == -1 || cache_misses_fd == -1) {
         return -1;
     }
-    std::ofstream data_file("output_data.csv");
+    std::ofstream data_file("/data/local/tmp/output_data.csv");
     if (!data_file.is_open()) {
         std::cerr << "Failed to open output file!" << std::endl;
         return -1;
@@ -474,9 +440,14 @@ int main(int argc, char* argv[]) {
 
         int flag = 0;
         int big_freq, little_freq;
-        sscanf(buffer, "%d,%d,%d,%d,%d", &flag, &sbig_freq, &big_freq, &middle_freq, &little_freq);
+        char view_name[256];
+        sscanf(buffer, "%d,%d,%d,%d,%d,%s", &flag, &sbig_freq, &big_freq, &middle_freq, &little_freq, view_name);
 
         if (flag == 0) {
+            if(fps == NULL){
+                printf("please init view first\n");
+                continue;
+            }
             auto start = std::chrono::high_resolution_clock::now();
             sbig_freq = get_sbig_cpu_freq();
             big_freq = get_big_cpu_freq();
@@ -558,6 +529,14 @@ int main(int argc, char* argv[]) {
             int result = set_freq(sbig_freq, big_freq, middle_freq, little_freq);
             std::string data = std::to_string(result);
             send(client_fd, data.c_str(), data.length(), 0);
+        } else if (flag == 2){
+            std::string view_escaped_name = view_name;
+            if(fps != NULL){
+                delete fps;
+            }
+            fps = new FPSGet(view_escaped_name.c_str());
+            std::cout << "new object for view " << view_escaped_name << " created ! " << std::endl;
+            fps->start();
         }
         close(client_fd);
     }

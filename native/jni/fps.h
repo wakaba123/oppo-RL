@@ -19,6 +19,7 @@ private:
 public:
     bool while_flag = 1;
     FPSGet(const std::string& view);
+    ~FPSGet();
     void start();
     void stop();
     int getFPS();
