@@ -4,6 +4,7 @@
 *.pyc
 .vscode/*
 native/files/*.csv
+native/libs/*
 native/obj/*
 */models/*
 kd_tree/*
@@ -15,4 +16,5 @@ temp.txt
 dqn_model_episode_*
 */android-ndk-r10b/*
 */my_model_*/
+temp/*
 
