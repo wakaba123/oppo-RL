@@ -53,7 +53,7 @@ class ReplayBuffer:
         if not only_train:
             self.f = open(data_file, "a")
             if os.path.getsize(data_file) == 0:
-                self.f.write('normal_sbig_cpu_freq,normal_big_cpu_freq,normal_middle_cpu_freq,normal_little_cpu_freq,normal_sbig_util,normal_big_util,normal_middle_util,normal_little_util,normal_mem,normal_fps,action,reward,next_normal_sbig_cpu_freq,next_normal_big_cpu_freq,next_normal_middle_cpu_freq,next_normal_little_cpu_freq,next_normal_sbig_util,next_normal_big_util,next_normal_middle_util,next_normal_little_util,next_normal_mem,next_normal_fps,sbig_cpu_freq,big_cpu_freq,middle_cpu_freq,little_cpu_freq,sbig_util,big_util,middle_util,little_util,mem,fps,next_sbig_cpu_freq,next_big_cpu_freq,next_middle_cpu_freq,next_little_cpu_freq,next_sbig_util,next_big_util,next_middle_util,next_little_util,next_mem,next_fps\n')
+                self.f.write('normal_sbig_cpu_freq,normal_big_cpu_freq,normal_middle_cpu_freq,normal_little_cpu_freq,normal_sbig_util,normal_big_util,normal_middle_util,normal_little_util,normal_mem,normal_fps,next_normal_sbig_cpu_freq,next_normal_big_cpu_freq,next_normal_middle_cpu_freq,next_normal_little_cpu_freq,next_normal_sbig_util,next_normal_big_util,next_normal_middle_util,next_normal_little_util,next_normal_mem,next_normal_fps,action,reward,sbig_cpu_freq,big_cpu_freq,middle_cpu_freq,little_cpu_freq,sbig_util,big_util,middle_util,little_util,mem,fps,next_sbig_cpu_freq,next_big_cpu_freq,next_middle_cpu_freq,next_little_cpu_freq,next_sbig_util,next_big_util,next_middle_util,next_little_util,next_mem,next_fps\n')
         # self.load('yuanshen_60.csv')
         # self.load('douyin_30.csv')
         # self.load('wangzhe_120.csv')
@@ -188,8 +188,8 @@ class DQNAgent:
                 # # 将经验存入ReplayBuffer
                 if(int(raw_state[-1]) >= target_fps -2):
                     print('here fps is ok')
-                    self.buffer.add((state, action, reward, next_state),(raw_state, raw_next_state))
-                    self.buffer.add((state, action, reward, next_state),(raw_state, raw_next_state))
+                    # self.buffer.add((state, action, reward, next_state),(raw_state, raw_next_state))
+                    # self.buffer.add((state, action, reward, next_state),(raw_state, raw_next_state))
 
                 self.buffer.add((state, action, reward, next_state),(raw_state, raw_next_state))
 
@@ -238,5 +238,5 @@ dqn = DQNAgent(10, 625, model_save_path=model_save_path, model_load_path=model_l
 if testing or only_train:
     dqn.train(env, episodes=100001, epsilon_start=0, epsilon_end=0.02)
 else:
-    dqn.train(env, episodes=20001, epsilon_start=0.5, epsilon_end=0.02)
+    dqn.train(env, episodes=20001, epsilon_start=1, epsilon_end=0.02)
 
