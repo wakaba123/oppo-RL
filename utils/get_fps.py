@@ -5,8 +5,9 @@ import argparse
 import subprocess
 import re
 from threading import Thread
+import numpy as np
 
-nanoseconds_per_second = 1e9
+miliseconds_per_second = 1e6
 
 class SurfaceFlingerFPS():
     def __init__(self, view,):
@@ -37,7 +38,7 @@ class SurfaceFlingerFPS():
     def __frame_data__(self, view):
         out = execute(f'dumpsys SurfaceFlinger --latency {view}')
         results = out.splitlines()
-        refresh_period = int(results[0]) / nanoseconds_per_second
+        refresh_period = int(results[0]) / miliseconds_per_second
         timestamps = []
         for line in results[1:]:
             fields = line.split()
@@ -47,7 +48,7 @@ class SurfaceFlingerFPS():
             if submitting == 0:
                 continue
 
-            timestamp = submitting/nanoseconds_per_second
+            timestamp = submitting/miliseconds_per_second
             timestamps.append(timestamp)
         return (refresh_period, timestamps)
 
@@ -60,7 +61,7 @@ class SurfaceFlingerFPS():
         
         self.refresh_period, self.timestamps = self.__frame_data__(view)
         #print(self.timestamps)
-        time.sleep(0.7)
+        time.sleep(0.2)
         self.refresh_period, tss = self.__frame_data__(view)
         #print(tss)
         self.last_index = 0
@@ -80,16 +81,16 @@ class SurfaceFlingerFPS():
         ajusted_timestamps = []
         for seconds in self.timestamps[:]:
                 seconds -= self.base_timestamp
-                if seconds > 1e6: # too large, just ignore
+                if seconds > 1e9: # too large, just ignore
                     continue
                 ajusted_timestamps.append(seconds)
 
-        from_time = ajusted_timestamps[-1] - 1.0
+        from_time = ajusted_timestamps[-1] - 1000
         fps_count = 0
         for seconds in ajusted_timestamps:
                 if seconds > from_time:
                     fps_count += 1
-        self.fps = fps_count
+        self.fps = fps_count  
 
     def start(self):
         th = Thread(target=self.collect_frame_data, args=(self.view,))
@@ -132,23 +133,58 @@ def get_view():
     print(f'current result is {result}')
     return re.escape(result[0])
 
-# view = get_view()
-# view = 'com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity#407'
-# view = 'SurfaceView[com.tencent.tmgp.sgame/com.tencent.tmgp.sgame.SGameActivity](BLAST)#407'
-view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#231'
-# view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#184'
-view_douyin = 'SurfaceView[com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity](BLAST)#313'
-view_genshin = re.escape(view_genshin)
-view_douyin = re.escape(view_douyin)
+def get_view():
+    # return ""
+    focus_index = [3,6]
+    # focus_index= [4,8]
+    out = execute('dumpsys SurfaceFlinger | grep -i Explicit -A 30')
+    a = out.split('\n')
+    view = ""
+    for index in focus_index:
+        if a[index][-3] == '*':
+            view = a[index-1]
+            break
+    view = view.strip()
+    print(f'current view: {view}')
+
+    out = execute('dumpsys SurfaceFlinger --list')
+    a = out.split('\n')
+    # pattern = r'SurfaceView\[com\.miHoYo\.Yuanshen\/com\..*?\.GetMobileInfo\.MainActivity\]\(BLAST\)#0'
+    escaped_text = re.escape(view)
+    pattern = escaped_text.replace(re.escape('[...]'), '.*?')
+
+    result = re.findall(pattern, out)
+
+    print(f'current result is {result}')
+    return result[0].replace('(','\\(').replace(')','\\)')
+ 
+view = get_view()
+# view = 'com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity#1334'
+# view = 'SurfaceView[com.tencent.tmgp.sgame/com.tencent.tmgp.sgame.SGameActivity](BLAST)#538'
+# view_genshin = 'SurfaceView[com.miHoYo.Yuanshen/com.miHoYo.GetMobileInfo.MainActivity](BLAST)#292'
+# view_douyin = 'SurfaceView[com.ss.android.ugc.aweme/com.ss.android.ugc.aweme.splash.SplashActivity](BLAST)#350'
+# view_douyin = view_genshin
+# view_genshin = view_douyin
+
+view_genshin = view
+view_douyin = view
+# view_genshin = re.escape(view_genshin)
+# view_douyin = re.escape(view_douyin)
+
 
 # print('current view is ',re.escape(view))
 # print(view.replace('\\','\\\\'))
 sf_fps_driver = SurfaceFlingerFPS(view_douyin)
-sf_fps_driver2 = SurfaceFlingerFPS(view_genshin)
+# sf_fps_driver2 = SurfaceFlingerFPS(view_genshin)
 t = 0
+fps_record = []
 while t < 50:
     fps = float(sf_fps_driver.getFPS())
-    fps2 = float(sf_fps_driver2.getFPS())
+    # fps2 = float(sf_fps_driver2.getFPS())
     t += 1
-    print(fps,fps2)
+    print(fps)
+    fps_record.append(fps)
+    # print(fps,fps2)
     time.sleep(1)
+
+print(np.mean(fps_record[1:]))

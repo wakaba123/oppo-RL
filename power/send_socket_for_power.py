@@ -2,8 +2,8 @@ import socket
 import time
 
 # 服务器地址和端口（确保与C++服务器代码中的地址和端口一致）
-# SERVER_IP = "192.168.2.103"  # 
-SERVER_IP = "127.0.0.1"  # 本地运行时为localhost
+SERVER_IP = "192.168.2.106"  # 
+# SERVER_IP = "127.0.0.1"  # 本地运行时为localhost
 SERVER_PORT = 8080
 
 def send_socket_message(msg):
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     while True:
         print("Sending first message...")
         send_socket_message(0)  # 第一次发送消息
-        time.sleep(10)
+        time.sleep(5)
         print("Sending second message...")
         # send_socket_message(1)  # 第二次发送消息
         res = send_socket_message(1)

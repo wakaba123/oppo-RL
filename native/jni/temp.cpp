@@ -23,14 +23,16 @@
 #include <cstdint>
 #define PORT 8888
 
+bool disable_output = false;
+
 void red() {
-    printf("\033[1;31m");
+    if (!disable_output) printf("\033[1;31m");
 }
 void yellow() {
-    printf("\033[1;33m");
+    if (!disable_output) printf("\033[1;33m");
 }
 void reset() {
-    printf("\033[0m");
+    if (!disable_output) printf("\033[0m");
 }
 
 typedef struct {
@@ -352,6 +354,11 @@ int open_perf_event(uint64_t type, uint64_t config) {
 }
 
 int main(int argc, char* argv[]) {
+    // Check for command-line argument to disable output
+    if (argc > 1 && strcmp(argv[1], "--disable-output") == 0) {
+        disable_output = true;
+    }
+
     int server_fd, client_fd, valread;
     struct sockaddr_in server_addr;
     char buffer[1024] = {0};
@@ -359,6 +366,13 @@ int main(int argc, char* argv[]) {
     // 创建Socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // 设置SO_REUSEADDR选项
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+        perror("setsockopt failed");
         exit(EXIT_FAILURE);
     }
 
@@ -379,7 +393,7 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    printf("服务端已启动，等待客户端连接...\n");
+    if (!disable_output) printf("服务端已启动，等待客户端连接...\n");
 
     // State current_state;
     // current_state.init();
@@ -407,17 +421,17 @@ int main(int argc, char* argv[]) {
     double big_util;
     double sbig_util;
     // 初始化 PMU 事件
-    int instructions_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-    int cycles_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
-    int cache_misses_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES);
-    if (instructions_fd == -1 || cycles_fd == -1 || cache_misses_fd == -1) {
-        return -1;
-    }
-    std::ofstream data_file("/data/local/tmp/output_data.csv");
-    if (!data_file.is_open()) {
-        std::cerr << "Failed to open output file!" << std::endl;
-        return -1;
-    }
+    // int instructions_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
+    // int cycles_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
+    // int cache_misses_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES);
+    // if (instructions_fd == -1 || cycles_fd == -1 || cache_misses_fd == -1) {
+    //     return -1;
+    // }
+    // std::ofstream data_file("/data/local/tmp/output_data.csv");
+    // if (!data_file.is_open()) {
+    //     std::cerr << "Failed to open output file!" << std::endl;
+    //     return -1;
+    // }
     // 接受客户端连接请求
     // set_governor("userspace");
     while (1) {
@@ -435,8 +449,8 @@ int main(int argc, char* argv[]) {
             std::cerr << "Failed to read from socket\n";
             return 1;
         }
-        printf("客户端已连接：%s\n", inet_ntoa(server_addr.sin_addr));
-        printf("客户端的信息为:%s\n", buffer);
+        if (!disable_output) printf("客户端已连接：%s\n", inet_ntoa(server_addr.sin_addr));
+        if (!disable_output) printf("客户端的信息为:%s\n", buffer);
 
         int flag = 0;
         int big_freq, little_freq;
@@ -445,10 +459,10 @@ int main(int argc, char* argv[]) {
 
         if (flag == 0) {
             if(fps == NULL){
-                printf("please init view first\n");
+                if (!disable_output) printf("please init view first\n");
                 continue;
             }
-            auto start = std::chrono::high_resolution_clock::now();
+            // auto start = std::chrono::high_resolution_clock::now();
             sbig_freq = get_sbig_cpu_freq();
             big_freq = get_big_cpu_freq();
             middle_freq = get_middle_cpu_freq();
@@ -481,32 +495,32 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            ioctl(instructions_fd, PERF_EVENT_IOC_RESET, 0);
-            ioctl(cycles_fd, PERF_EVENT_IOC_RESET, 0);
-            ioctl(cache_misses_fd, PERF_EVENT_IOC_RESET, 0);
+            // ioctl(instructions_fd, PERF_EVENT_IOC_RESET, 0);
+            // ioctl(cycles_fd, PERF_EVENT_IOC_RESET, 0);
+            // ioctl(cache_misses_fd, PERF_EVENT_IOC_RESET, 0);
 
-            ioctl(instructions_fd, PERF_EVENT_IOC_ENABLE, 0);
-            ioctl(cycles_fd, PERF_EVENT_IOC_ENABLE, 0);
-            ioctl(cache_misses_fd, PERF_EVENT_IOC_ENABLE, 0);
+            // ioctl(instructions_fd, PERF_EVENT_IOC_ENABLE, 0);
+            // ioctl(cycles_fd, PERF_EVENT_IOC_ENABLE, 0);
+            // ioctl(cache_misses_fd, PERF_EVENT_IOC_ENABLE, 0);
 
-            // 执行计算或其他操作
+            // // 执行计算或其他操作
 
-            // 禁用 PMU 计数器
-            ioctl(instructions_fd, PERF_EVENT_IOC_DISABLE, 0);
-            ioctl(cycles_fd, PERF_EVENT_IOC_DISABLE, 0);
-            ioctl(cache_misses_fd, PERF_EVENT_IOC_DISABLE, 0);
+            // // 禁用 PMU 计数器
+            // ioctl(instructions_fd, PERF_EVENT_IOC_DISABLE, 0);
+            // ioctl(cycles_fd, PERF_EVENT_IOC_DISABLE, 0);
+            // ioctl(cache_misses_fd, PERF_EVENT_IOC_DISABLE, 0);
 
-            // 读取 PMU 计数器
-            uint64_t instructions, cycles, cache_misses;
-            read(instructions_fd, &instructions, sizeof(uint64_t));
-            read(cycles_fd, &cycles, sizeof(uint64_t));
-            read(cache_misses_fd, &cache_misses, sizeof(uint64_t));
+            // // 读取 PMU 计数器
+            // uint64_t instructions, cycles, cache_misses;
+            // read(instructions_fd, &instructions, sizeof(uint64_t));
+            // read(cycles_fd, &cycles, sizeof(uint64_t));
+            // read(cache_misses_fd, &cache_misses, sizeof(uint64_t));
 
-            // 计算 IPC 和缓存未命中率
-            double ipc = static_cast<double>(instructions) / static_cast<double>(cycles);
-            double cache_miss_rate = static_cast<double>(cache_misses) / static_cast<double>(instructions);
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed = end - start;
+            // // 计算 IPC 和缓存未命中率
+            // double ipc = static_cast<double>(instructions) / static_cast<double>(cycles);
+            // double cache_miss_rate = static_cast<double>(cache_misses) / static_cast<double>(instructions);
+            // auto end = std::chrono::high_resolution_clock::now();
+            // std::chrono::duration<double> elapsed = end - start;
             // std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 
             std::string data = std::to_string(sbig_freq) + "," +
@@ -519,30 +533,36 @@ int main(int argc, char* argv[]) {
                                std::to_string(big_util) + "," +
                                std::to_string(middle_util) + "," +
                                std::to_string(little_util) + "," +
-                               std::to_string(ipc) + "," +
-                               std::to_string(cache_miss_rate);
+                            //    std::to_string(ipc) + "," +
+                               std::to_string(0) + "," +
+                            //    std::to_string(cache_miss_rate);
+                               std::to_string(0);
             send(client_fd, data.c_str(), data.length(), 0);
-            data_file << data.c_str() << "\n";
-            std::cout << "Data written: " << data << "\n";
-            data_file.flush();
+            // data_file << data.c_str() << "\n";
+            if (!disable_output) std::cout << "Data written: " << data << "\n";
+            // data_file.flush();
         } else if (flag == 1) {
+            // auto start = std::chrono::high_resolution_clock::now();
             int result = set_freq(sbig_freq, big_freq, middle_freq, little_freq);
             std::string data = std::to_string(result);
             send(client_fd, data.c_str(), data.length(), 0);
+            // auto end = std::chrono::high_resolution_clock::now();
+            // std::chrono::duration<double> elapsed = end - start;
+            // std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
         } else if (flag == 2){
             std::string view_escaped_name = view_name;
             if(fps != NULL){
                 delete fps;
             }
             fps = new FPSGet(view_escaped_name.c_str());
-            std::cout << "new object for view " << view_escaped_name << " created ! " << std::endl;
+            if (!disable_output) std::cout << "new object for view " << view_escaped_name << " created ! " << std::endl;
             fps->start();
         }
         close(client_fd);
     }
-    close(instructions_fd);
-    close(cycles_fd);
-    close(cache_misses_fd);
+    // close(instructions_fd);
+    // close(cycles_fd);
+    // close(cache_misses_fd);
 
     return 0;
 }
