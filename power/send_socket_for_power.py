@@ -2,24 +2,24 @@ import socket
 import time
 
 # 服务器地址和端口（确保与C++服务器代码中的地址和端口一致）
-SERVER_IP = "192.168.2.106"  # 
+SERVER_IP = "192.168.2.103"  # 
 # SERVER_IP = "127.0.0.1"  # 本地运行时为localhost
 SERVER_PORT = 8080
 
-def send_socket_message(msg):
-    try:
-        # 创建 socket 对象
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # 连接到服务器
-        client_socket.connect((SERVER_IP, SERVER_PORT))
-        # 发送消息
-        message = str(msg)  # 可以是任意内容
-        client_socket.sendall(message.encode())
-        print("Message sent to server.")
-        # 关闭 socket 连接
-        client_socket.close()
-    except Exception as e:
-        print(f"An error occurred: {e}")
+# def send_socket_message(msg):
+#     try:
+#         # 创建 socket 对象
+#         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#         # 连接到服务器
+#         client_socket.connect((SERVER_IP, SERVER_PORT))
+#         # 发送消息
+#         message = str(msg)  # 可以是任意内容
+#         client_socket.sendall(message.encode())
+#         print("Message sent to server.")
+#         # 关闭 socket 连接
+#         client_socket.close()
+#     except Exception as e:
+#         print(f"An error occurred: {e}")
 
 def send_socket_message(msg):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -73,7 +73,7 @@ void initialize_cpu_control(CPUControl* control) {
 
 void update_cpu_utilization(CPUControl* control, double* utilization) {
     // system("adb shell cat /proc/stat > stat2.txt");
-    usleep(10000);
+    usleep(100000);
     FILE* file = fopen("/proc/stat", "r");
     if (file == NULL) {
         printf("Failed to open stat.txt\n");
@@ -416,10 +416,16 @@ int main(int argc, char* argv[]) {
     int cur_fps;
     int mem;
 
-    double little_util;
-    double middle_util;
-    double big_util;
-    double sbig_util;
+    double little_util = 0;
+    double middle_util = 0;
+    double big_util = 0;
+    double sbig_util = 0;
+    double old_little_util = little_util;
+    double old_middle_util = middle_util;
+    double old_big_util = big_util;
+    double old_sbig_util = sbig_util;
+
+
     // 初始化 PMU 事件
     // int instructions_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
     // int cycles_fd = open_perf_event(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
@@ -472,11 +478,10 @@ int main(int argc, char* argv[]) {
             int mem = get_swap();
 
             update_cpu_utilization(&control, utilization);
-
-            little_util = 0.0;
-            middle_util = 0.0;
-            big_util = 0.0;
-            sbig_util = 0.0;
+            little_util = 0;
+            middle_util = 0;
+            big_util = 0;
+            sbig_util = 0;
 
             for (int i = 0; i < MAX_CPU_COUNT; i++) {
                 // std::cout << utilization[i] << "," << i << std::endl;
@@ -491,9 +496,21 @@ int main(int argc, char* argv[]) {
                     big_util = std::max(utilization[i], big_util);
                 } else if (i == 7) {
                     // sbig_util += utilization[i];
-                    big_util =  std::max(utilization[i], sbig_util);
+                    sbig_util =  std::max(utilization[i], sbig_util);
                 }
             }
+
+            // Apply linear smoothing
+            const double smoothing_factor = 0.3;
+            little_util = old_little_util * (1 - smoothing_factor) + little_util * smoothing_factor;
+            middle_util = old_middle_util * (1 - smoothing_factor) + middle_util * smoothing_factor;
+            big_util = old_big_util * (1 - smoothing_factor) + big_util * smoothing_factor;
+            sbig_util = old_sbig_util * (1 - smoothing_factor) + sbig_util * smoothing_factor;
+
+            old_little_util = little_util; 
+            old_middle_util = middle_util;
+            old_big_util = big_util;
+            old_sbig_util = sbig_util;
 
             // ioctl(instructions_fd, PERF_EVENT_IOC_RESET, 0);
             // ioctl(cycles_fd, PERF_EVENT_IOC_RESET, 0);

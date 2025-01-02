@@ -28,6 +28,7 @@ def normalize_util(sbig_util, big_util, middle_util, little_util):
 
 def normalize_fps(fps, target_fps):
     return int(fps) / target_fps
+    # return 0
 
 def find_ceil_index(arr, value):
     index = bisect.bisect_left(arr, value)
@@ -35,8 +36,7 @@ def find_ceil_index(arr, value):
     return res
 
 
-
-
+import numpy as np
 freq_policy0 = np.array([364800, 460800, 556800, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1344000, 1459200, 1574400, 1689600, 1804800, 1920000, 2035200, 2150400, 2265600])
 power_policy0 = np.array([4, 5.184, 6.841, 8.683, 10.848, 12.838, 14.705, 17.13, 19.879, 21.997, 25.268, 28.916, 34.757, 40.834, 46.752, 50.616, 56.72, 63.552])
 
@@ -52,25 +52,48 @@ power_policy5 = np.array([15.53, 20.011, 24.855, 30.096, 35.859, 43.727, 51.055,
 freq_policy7 = np.array([480000, 576000, 672000, 787200, 902400, 1017600, 1132800, 1248000, 1363200, 1478400, 1593600, 1708800, 1824000, 1939200, 2035200, 2112000, 2169600, 2246400, 2304000, 2380800, 2438400, 2496000, 2553600, 2630400, 2688000, 2745600, 2803200, 2880000, 2937600, 2995200, 3052800])
 power_policy7 = np.array([31.094, 39.464, 47.237, 59.888, 70.273, 84.301, 97.431, 114.131, 126.161, 142.978, 160.705, 181.76, 201.626, 223.487, 240.979, 253.072, 279.625, 297.204, 343.298, 356.07, 369.488, 393.457, 408.885, 425.683, 456.57, 481.387, 511.25, 553.637, 592.179, 605.915, 655.484])
 
-def get_reward(fps, target_fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx):
-    cpu_nums = [2,3,2,1]
-    power =  power_policy7[sbig_freq_idx] * cpu_nums[3] + power_policy5[big_freq_idx] * cpu_nums[2] + power_policy2[middle_freq_idx] * cpu_nums[1] + power_policy0[little_freq_idx] * cpu_nums[0] 
-    target_power = 470
+cpu_nums = [2, 3, 2, 1]
+min_power = (power_policy7[0] * cpu_nums[3] +
+        power_policy5[0] * cpu_nums[2] +
+        power_policy2[0] * cpu_nums[1] +
+        power_policy0[0] * cpu_nums[0])  # 116.312
+
+max_power = (power_policy7[-1] * cpu_nums[3] +
+        power_policy5[-1] * cpu_nums[2] +
+        power_policy2[-1] * cpu_nums[1] +
+        power_policy0[-1] * cpu_nums[0]) # 2465.787
+ 
+
+def get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx):
+    power = (power_policy7[sbig_freq_idx] * cpu_nums[3] +
+             power_policy5[big_freq_idx] * cpu_nums[2] +
+             power_policy2[middle_freq_idx] * cpu_nums[1] +
+             power_policy0[little_freq_idx] * cpu_nums[0])
+    
     reward = 0
+    if fps < 0.6:
+        fps_reward = 0
+    else:
+        fps_reward = 2000 * fps
+    
+    power_reward = power * -1
 
-    if fps < target_fps - 5:
-        reward -= 100 * (target_fps - fps)
-    if fps < target_fps - 2:
-        reward -= 50
+    reward = fps_reward + power_reward
 
-    reward +=  (target_power - power) 
-    return reward
+    # 归一化奖励值
+    max_reward = 2000 - min_power  # 根据实际情况设置最大奖励值
+    min_reward = 0 - max_power  # 根据实际情况设置最小奖励值
+    normalized_reward = (reward - min_reward) / (max_reward - min_reward)
+    normalized_reward = 100 * max(0, min(1, normalized_reward))  # 确保归一化后的奖励值在0-1范围内
+
+    return normalized_reward
 
 class Environment:
     def __init__(self, target_fps, training=False):
-        self.target_fps = target_fps  # Set target_fps as an instance variable
+        # self.target_fps = target_fps // 10 + 1 # Set target_fps as an instance variable
+        self.target_fps = target_fps 
         self.name = 'oneplus12'
-        self.server_ip = "192.168.2.103"  
+        self.server_ip = "192.168.2.106"  
         # self.server_ip = "127.0.0.1"  
         self.server_port = 8888
         self.curr_sbig_freq = 0
@@ -114,6 +137,8 @@ class Environment:
         return (normal_sbig_cpu_freq, normal_big_cpu_freq, normal_middle_cpu_freq, normal_little_cpu_freq,normal_sbig_util, normal_big_util, normal_middle_util, normal_little_util, normal_mem, normal_fps) , (sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq,sbig_util, big_util, middle_util, little_util, mem, fps)
     
     def reset(self):
+        if self.training:
+            return 0,0
         governor = 'performance'
         freq_policys = [freq_policy0, freq_policy0, freq_policy2, freq_policy2, freq_policy2, freq_policy5, freq_policy5, freq_policy7]
         for i in [0,2,5,7]:
@@ -138,7 +163,10 @@ class Environment:
 
     def parse_action2(self, action, state):
         print(action)
-        target_load = 80
+        if state[-1] < 0.9:
+            target_load = 50
+        else: 
+            target_load = 70
         sbig_cpu_util , big_cpu_util, middle_cpu_util, little_cpu_util = state[4], state[5], state[6], state[7]
         sbig_cpu_freq, big_cpu_freq, middle_cpu_freq, little_cpu_freq = self.curr_sbig_freq, self.curr_big_freq, self.curr_middle_freq, self.curr_little_freq
         # print(sbig_cpu_freq, sbig_cpu_util, big_cpu_freq, big_cpu_util, middle_cpu_freq, middle_cpu_util, little_cpu_freq, little_cpu_util)
@@ -149,8 +177,8 @@ class Environment:
         little_target_freq_index = find_ceil_index(freq_policy0, little_cpu_freq *100 * little_cpu_util / target_load)
         print(sbig_target_freq_index, big_target_freq_index, middle_target_freq_index, little_target_freq_index)
         # return sbig_target_freq_index, big_target_freq_index, middle_target_freq_index, little_target_freq_index
-        mapping = [-2,-1,0,1,2]
-        # mapping = [0,0,0,0,0]
+        # mapping = [-2,-1,0,1,2]
+        mapping = [0,0,0,0,0]
         num_frequencies = 5
         # 计算每个核的频点索引
         sbig_index_action = sbig_target_freq_index+ mapping[(action // (num_frequencies ** 3)) % num_frequencies]
@@ -183,9 +211,9 @@ class Environment:
         time.sleep(0.01)
         # get state
         state, raw_state = self.get_state()
-        fps = state[-1] * self.target_fps
+        fps = state[-1] 
 
-        reward = get_reward(fps,self.target_fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
+        reward = get_reward(fps, sbig_freq_idx, big_freq_idx, middle_freq_idx, little_freq_idx)
         return  state, reward, raw_state
     
     def get_view(self):

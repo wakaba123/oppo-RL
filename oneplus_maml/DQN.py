@@ -15,8 +15,9 @@ import argparse  # Import argparse module
 def get_replay_buffer_from_csv(file_path):
     buffer = deque()
     with open(file_path, 'r') as f:
+        next(f)
         reader = csv.reader(f)
-        for row in reader[1:]:
+        for row in reader:
             state = np.array(row[:10], dtype=np.float32)
             action = int(row[20])
             reward = float(row[21])
@@ -27,7 +28,7 @@ def get_replay_buffer_from_csv(file_path):
 parser = argparse.ArgumentParser(description='DQN Agent')
 parser.add_argument('--fps', type=int, default=30, help='Frames per second')
 parser.add_argument('--model_save_path', type=str, default="my_model_weights.h5", help='Path to save the model weights')
-parser.add_argument('--load_model', type=bool, default=True, help='Load the model weights symbol')
+parser.add_argument('--load_model', type=bool, default=False, help='Load the model weights symbol')
 parser.add_argument('--model_load_path', type=str, default=None, help='Path to load the model weights')
 parser.add_argument('--only_train', type=bool, default=False, help='do not run the environment')
 parser.add_argument('--testing', type=bool, default=False, help='test the trained model')
@@ -51,12 +52,12 @@ class ReplayBuffer:
     def __init__(self, max_size):
         self.buffer = deque(maxlen=max_size)
         if not only_train:
-            self.f = open(data_file, "a")
+            self.f = open(data_file, "a+")
             if os.path.getsize(data_file) == 0:
                 self.f.write('normal_sbig_cpu_freq,normal_big_cpu_freq,normal_middle_cpu_freq,normal_little_cpu_freq,normal_sbig_util,normal_big_util,normal_middle_util,normal_little_util,normal_mem,normal_fps,next_normal_sbig_cpu_freq,next_normal_big_cpu_freq,next_normal_middle_cpu_freq,next_normal_little_cpu_freq,next_normal_sbig_util,next_normal_big_util,next_normal_middle_util,next_normal_little_util,next_normal_mem,next_normal_fps,action,reward,sbig_cpu_freq,big_cpu_freq,middle_cpu_freq,little_cpu_freq,sbig_util,big_util,middle_util,little_util,mem,fps,next_sbig_cpu_freq,next_big_cpu_freq,next_middle_cpu_freq,next_little_cpu_freq,next_sbig_util,next_big_util,next_middle_util,next_little_util,next_mem,next_fps\n')
-        # self.load('yuanshen_60.csv')
-        # self.load('douyin_30.csv')
-        # self.load('wangzhe_120.csv')
+        # self.load('tencent_video_1226.csv')
+        # self.load('douyin_1225_60_2000.csv')
+        self.load('kuaishou_60.csv')
 
     def add(self, experience, raw_experience):
         self.buffer.append(experience)
@@ -65,6 +66,7 @@ class ReplayBuffer:
         # print(line)
         if not only_train:
             self.f.write(line)
+            self.f.flush()
 
     def sample(self, batch_size):
         indices = np.random.choice(len(self.buffer), batch_size, replace=False)
@@ -106,7 +108,7 @@ class DQN(tf.keras.Model):
         return cls(**config)
 
 class DQNAgent:
-    def __init__(self, input_dim, output_dim, learning_rate=0.001, gamma=0.02, buffer_size=500000, batch_size=256, model_save_path="my_model_weights.h5", model_load_path=None):
+    def __init__(self, input_dim, output_dim, learning_rate=0.001, gamma=0.02, buffer_size=500000, batch_size=64, model_save_path="my_model_weights.h5", model_load_path=None):
         self.model = DQN(input_dim, output_dim)
         self.model.compile(
             loss=tf.keras.losses.MeanSquaredError(),
@@ -205,7 +207,7 @@ class DQNAgent:
                 if episode % 10 == 0:
                     self.update_target_network()
 
-                if episode % 5000 == 0:
+                if episode % 500 == 0:
                     self.save_model(episode)
                     print(f"Episode {episode}, Loss: {loss}")
 
@@ -214,7 +216,7 @@ class DQNAgent:
                 print(f"Episode {episode}, Loss: {loss} , Epsilon: {epsilon:.3f}")
             else:
                 loss = self.train_step()
-                if episode % 1000 == 0:
+                if episode % 500 == 0:
                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     self.save_model(episode)
                     print(f"Time: {current_time} , Episode {episode}, Loss: {loss}")
@@ -226,17 +228,20 @@ class DQNAgent:
 
     def load_model(self, model_load_path):
         self.model.build(input_shape=(None, 10))  # Ensure the model is built with the correct input shape
-        self.model.load_weights(model_load_path)
         self.model.compile(
             loss=tf.keras.losses.MeanSquaredError(),
             optimizer=tf.keras.optimizers.Adam(learning_rate=0.001)
         )
+        print('model path is ', model_load_path)
+        self.model.load_weights(model_load_path)
 
 env = Environment(target_fps, only_train)  # Pass target_fps to Environment
 # env.init_view()
 dqn = DQNAgent(10, 625, model_save_path=model_save_path, model_load_path=model_load_path)
-if testing or only_train:
-    dqn.train(env, episodes=100001, epsilon_start=0, epsilon_end=0.02)
+if testing:
+    dqn.train(env, episodes=200, epsilon_start=0, epsilon_end=0.02)
+elif only_train:
+    dqn.train(env, episodes=200001, epsilon_start=0, epsilon_end=0.02)
 else:
-    dqn.train(env, episodes=20001, epsilon_start=1, epsilon_end=0.02)
+    dqn.train(env, episodes=100001, epsilon_start=1, epsilon_end=0.02)
 
