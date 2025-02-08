@@ -32,6 +32,7 @@ parser.add_argument('--load_model', type=bool, default=False, help='Load the mod
 parser.add_argument('--model_load_path', type=str, default=None, help='Path to load the model weights')
 parser.add_argument('--only_train', type=bool, default=False, help='do not run the environment')
 parser.add_argument('--testing', type=bool, default=False, help='test the trained model')
+parser.add_argument('--filename', type=str, default="data_file.csv", help='data file name')
 args = parser.parse_args()
 target_fps = args.fps 
 model_save_path = args.model_save_path
@@ -39,25 +40,19 @@ model_load_path = args.model_load_path
 testing = args.testing
 only_train = args.only_train
 load_model_or_not = args.load_model
-
-# testing =  True
-# # testing =  False
-# only_train = False 
-# # only_train = True
-# load_model_or_not = True
-# # load_model_or_not = False 
-data_file = "data_file.csv"
+data_file = args.filename
+print(data_file)
 
 class ReplayBuffer:
     def __init__(self, max_size):
         self.buffer = deque(maxlen=max_size)
         if not only_train:
-            self.f = open(data_file, "a+")
+            self.f = open(data_file, "w+")
             if os.path.getsize(data_file) == 0:
                 self.f.write('normal_sbig_cpu_freq,normal_big_cpu_freq,normal_middle_cpu_freq,normal_little_cpu_freq,normal_sbig_util,normal_big_util,normal_middle_util,normal_little_util,normal_mem,normal_fps,next_normal_sbig_cpu_freq,next_normal_big_cpu_freq,next_normal_middle_cpu_freq,next_normal_little_cpu_freq,next_normal_sbig_util,next_normal_big_util,next_normal_middle_util,next_normal_little_util,next_normal_mem,next_normal_fps,action,reward,sbig_cpu_freq,big_cpu_freq,middle_cpu_freq,little_cpu_freq,sbig_util,big_util,middle_util,little_util,mem,fps,next_sbig_cpu_freq,next_big_cpu_freq,next_middle_cpu_freq,next_little_cpu_freq,next_sbig_util,next_big_util,next_middle_util,next_little_util,next_mem,next_fps\n')
-        # self.load('tencent_video_1226.csv')
-        # self.load('douyin_1225_60_2000.csv')
-        self.load('kuaishou_60.csv')
+        # self.load('0119_douyin.csv')
+        # self.load('0119_kuaishou.csv')
+        # self.load('kuaishou_60.csv')
 
     def add(self, experience, raw_experience):
         self.buffer.append(experience)
@@ -165,6 +160,7 @@ class DQNAgent:
 
     def select_action(self, state, epsilon):
         if np.random.rand() < epsilon:
+            # return 0
             return np.random.randint(self.output_dim)
         q_values = self.model(np.expand_dims(state, axis=0))
         return np.argmax(q_values.numpy()[0])
@@ -207,7 +203,7 @@ class DQNAgent:
                 if episode % 10 == 0:
                     self.update_target_network()
 
-                if episode % 500 == 0:
+                if episode % 1000 == 0:
                     self.save_model(episode)
                     print(f"Episode {episode}, Loss: {loss}")
 
@@ -216,7 +212,7 @@ class DQNAgent:
                 print(f"Episode {episode}, Loss: {loss} , Epsilon: {epsilon:.3f}")
             else:
                 loss = self.train_step()
-                if episode % 500 == 0:
+                if episode % 1000 == 0:
                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     self.save_model(episode)
                     print(f"Time: {current_time} , Episode {episode}, Loss: {loss}")
@@ -239,9 +235,9 @@ env = Environment(target_fps, only_train)  # Pass target_fps to Environment
 # env.init_view()
 dqn = DQNAgent(10, 625, model_save_path=model_save_path, model_load_path=model_load_path)
 if testing:
-    dqn.train(env, episodes=200, epsilon_start=0, epsilon_end=0.02)
+    dqn.train(env, episodes=201, epsilon_start=0, epsilon_end=0.02)
 elif only_train:
-    dqn.train(env, episodes=200001, epsilon_start=0, epsilon_end=0.02)
+    dqn.train(env, episodes=2001, epsilon_start=0, epsilon_end=0.02)
 else:
-    dqn.train(env, episodes=100001, epsilon_start=1, epsilon_end=0.02)
+    dqn.train(env, episodes=2001, epsilon_start=1, epsilon_end=0.02, epsilon_decay=0.99)
 

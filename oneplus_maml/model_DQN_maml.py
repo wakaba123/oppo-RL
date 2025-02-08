@@ -29,7 +29,7 @@ model_save_path = args.model_save_path
 model_load_path = args.model_load_path
 load_model_or_not = args.load_model
 
-task_files = ['kuaishou_60.csv',"douyin_1225_60_2000.csv","tencent_video_1226.csv"]
+task_files = ['douyin_0116_30.csv',"kuaishou_0119_30.csv"]
 
 class ReplayBuffer:
     def __init__(self, max_size, buffer_file):
@@ -100,7 +100,7 @@ class MAMLAgent:
         if model_load_path:
             self.load_model(model_load_path)
 
-    def meta_train(self, meta_episodes=1000, inner_steps=5, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.9995):
+    def meta_train(self, meta_episodes=1000, inner_steps=2):
         for episode in range(meta_episodes):
             meta_gradients = []
             total_loss = 0
@@ -110,14 +110,15 @@ class MAMLAgent:
                 task_model.set_weights(self.meta_model.get_weights())
                 for _ in range(inner_steps):
                     loss, gradients = self.train_step(task_model, buffer)
-                    meta_gradients.append(gradients)
+                    if gradients is not None:
+                        meta_gradients.append(gradients)
                     total_loss += loss
-            self.apply_meta_gradients(meta_gradients)
-            epsilon_start = max(epsilon_end, epsilon_start * epsilon_decay)
+            if meta_gradients:
+                self.apply_meta_gradients(meta_gradients)
             avg_loss = total_loss / (len(self.buffers) * inner_steps)
             if episode % 10 == 0:
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print(f"{current_time} - Meta Episode {episode}, Epsilon: {epsilon_start:.3f}, Avg Loss: {avg_loss}")
+                print(f"{current_time} - Meta Episode {episode},  Avg Loss: {avg_loss}")
             if episode % 100 == 0 and episode != 0:
                 self.save_model(self.model_save_path[:-3] + f'_{episode}_' + '.h5')
                 print(f"Model weights saved at episode {episode}")
@@ -132,8 +133,8 @@ class MAMLAgent:
             q_target = q_values.numpy()
             for i in range(self.batch_size):
                 target = rewards[i] + self.gamma * np.max(q_next[i])
-                q_target[i][actions[i]] = target
-            loss = self.loss_fn(q_values, q_target)
+                q_target[i, actions[i]] = target
+            loss = tf.reduce_mean(tf.square(q_values - q_target))
         gradients = tape.gradient(loss, model.trainable_variables)
         return loss, gradients
         
@@ -155,5 +156,4 @@ class MAMLAgent:
 
 maml_agent = MAMLAgent(10, 625, model_save_path=model_save_path)
 # maml_agent = MAMLAgent(10, 625, model_save_path="meta_model_weights_new.h5",model_load_path="meta_model_weights.h5")
-maml_agent.meta_train(meta_episodes=10000)
-
+maml_agent.meta_train(meta_episodes=1000000)
